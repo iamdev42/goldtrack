@@ -16,7 +16,8 @@ export default function Customers() {
 
   useEffect(() => {
     if (tenantId) fetchCustomers()
-  }, [tenantId])
+    else if (!tenantLoading) setLoading(false)
+  }, [tenantId, tenantLoading])
 
   async function fetchCustomers() {
     setLoading(true)
