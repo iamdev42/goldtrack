@@ -3,22 +3,27 @@ import { supabase } from '../lib/supabase'
 import { useTenant } from '../hooks/useTenant'
 
 const CATEGORIES = ['ring', 'necklace', 'bracelet', 'earrings', 'other']
-const STATUSES = ['in_stock', 'with_customer', 'in_repair', 'sold']
+const STATUSES = ['for_sale', 'sold', 'reserved']
 const MATERIALS = ['Yellow Gold', 'White Gold', 'Rose Gold', 'Platinum', 'Silver', 'Palladium', 'Titanium', 'Stainless Steel']
 
 const STATUS_LABELS = {
-  in_stock: 'In Stock',
-  with_customer: 'With Customer',
-  in_repair: 'In Repair',
+  for_sale: 'For Sale',
   sold: 'Sold',
+  reserved: 'Reserved',
 }
 
 const STATUS_COLORS = {
-  in_stock: 'bg-green-100 text-green-700',
-  with_customer: 'bg-blue-100 text-blue-700',
-  in_repair: 'bg-orange-100 text-orange-700',
+  for_sale: 'bg-green-100 text-green-700',
   sold: 'bg-gray-100 text-gray-500',
+  reserved: 'bg-amber-100 text-amber-700',
 }
+
+const FILTERS = [
+  { key: null, label: 'All' },
+  { key: 'for_sale', label: 'For Sale' },
+  { key: 'sold', label: 'Sold' },
+  { key: 'reserved', label: 'Reserved' },
+]
 
 const EMPTY_FORM = {
   name: '',
@@ -26,7 +31,8 @@ const EMPTY_FORM = {
   category: '',
   material: '',
   weight_g: '',
-  status: 'in_stock',
+  price: '',
+  status: 'for_sale',
   customer_id: '',
 }
 
@@ -40,11 +46,17 @@ function photoPathFromUrl(url) {
   }
 }
 
+function formatPrice(value) {
+  if (value == null || value === '') return null
+  return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export default function Inventory() {
   const { tenantId, loading: tenantLoading } = useTenant()
   const [items, setItems] = useState([])
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -101,7 +113,8 @@ export default function Inventory() {
       category: item.category || '',
       material: item.material || '',
       weight_g: item.weight_g != null ? String(item.weight_g) : '',
-      status: item.status || 'in_stock',
+      price: item.price != null ? String(item.price) : '',
+      status: item.status || 'for_sale',
       customer_id: item.customer_id || '',
     })
     setPendingPhoto(null)
@@ -154,6 +167,7 @@ export default function Inventory() {
       category: form.category || null,
       material: form.material || null,
       weight_g: form.weight_g ? parseFloat(form.weight_g) : null,
+      price: form.price ? parseFloat(form.price) : null,
       status: form.status,
       customer_id: form.customer_id || null,
     }
@@ -207,6 +221,9 @@ export default function Inventory() {
     fetchItems()
   }
 
+  const filteredItems = filter ? items.filter(i => i.status === filter) : items
+  const totalValue = filteredItems.reduce((sum, i) => sum + (i.price || 0), 0)
+
   if (tenantLoading || loading) {
     return <div className="p-6 text-gray-400">Loading…</div>
   }
@@ -225,17 +242,44 @@ export default function Inventory() {
         </button>
       </div>
 
+      {/* Filter bar */}
+      <div className="flex gap-2 mb-3">
+        {FILTERS.map(f => (
+          <button
+            key={String(f.key)}
+            onClick={() => setFilter(f.key)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              filter === f.key
+                ? 'bg-amber-600 text-white'
+                : 'bg-white text-gray-500 border border-gray-200 hover:border-amber-300 hover:text-amber-700'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Stats */}
+      <div className="bg-white rounded-2xl px-5 py-3 mb-4 flex items-center justify-between shadow-sm">
+        <span className="text-sm text-gray-500">
+          {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
+        </span>
+        <span className="text-sm font-semibold text-amber-800">
+          Total: {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      </div>
+
       {/* Empty state */}
-      {items.length === 0 && (
+      {filteredItems.length === 0 && (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-lg">No items yet.</p>
-          <p className="text-sm mt-1">Tap + Add to create your first item.</p>
+          <p className="text-lg">{filter ? `No ${STATUS_LABELS[filter].toLowerCase()} items.` : 'No items yet.'}</p>
+          {!filter && <p className="text-sm mt-1">Tap + Add to create your first item.</p>}
         </div>
       )}
 
       {/* Item list */}
       <ul className="space-y-2">
-        {items.map(item => (
+        {filteredItems.map(item => (
           <li
             key={item.id}
             onClick={() => openEdit(item)}
@@ -274,7 +318,13 @@ export default function Inventory() {
               )}
             </div>
 
-            <span className="text-gray-300 text-xl flex-shrink-0">›</span>
+            {/* Price */}
+            <div className="flex-shrink-0 text-right">
+              {item.price != null && (
+                <p className="text-sm font-semibold text-gray-700">{formatPrice(item.price)}</p>
+              )}
+              <span className="text-gray-300 text-xl">›</span>
+            </div>
           </li>
         ))}
       </ul>
@@ -385,6 +435,16 @@ export default function Inventory() {
                   className="border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
+
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Price"
+                value={form.price}
+                onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
 
               <select
                 value={form.customer_id}
