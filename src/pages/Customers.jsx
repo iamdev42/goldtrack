@@ -100,7 +100,8 @@ export default function Customers() {
         <h2 className="text-2xl font-bold text-amber-800">Customers</h2>
         <button
           onClick={openAdd}
-          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-5 py-2.5 rounded-xl text-base transition-colors"
+          disabled={!tenantId}
+          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-5 py-2.5 rounded-xl text-base transition-colors disabled:opacity-50"
         >
           + Add
         </button>

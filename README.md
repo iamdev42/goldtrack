@@ -117,6 +117,22 @@ values (
 
 ---
 
+
+-- Fix customers policy to allow inserts                                                                                      
+  drop policy "tenant members only" on customers;
+                                                                                                                                
+  create policy "tenant members only" on customers                                                                              
+    using (is_member(tenant_id))                                                                                                
+    with check (is_member(tenant_id));                                                                                          
+                                                                                                                                
+  -- Same fix for items while we're here
+  drop policy "tenant members only" on items;
+
+  create policy "tenant members only" on items
+    using (is_member(tenant_id))
+    with check (is_member(tenant_id));
+    
+
 ## Deployment
 
 Push to `main` → Cloudflare Workers auto-deploys via `npx wrangler deploy`.

@@ -56,7 +56,9 @@ $$;
 
 -- Policies
 create policy "tenant members only" on customers
-  using (is_member(tenant_id));
+  using (is_member(tenant_id))
+  with check (is_member(tenant_id));
 
 create policy "tenant members only" on items
-  using (is_member(tenant_id));
+  using (is_member(tenant_id))
+  with check (is_member(tenant_id));
