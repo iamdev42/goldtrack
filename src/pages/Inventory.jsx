@@ -52,6 +52,7 @@ export default function Inventory() {
   const [error, setError] = useState(null)
   const [pendingPhoto, setPendingPhoto] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -245,7 +246,8 @@ export default function Inventory() {
               <img
                 src={item.photos[0]}
                 alt={item.name}
-                className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
+                onClick={e => { e.stopPropagation(); setLightboxSrc(item.photos[0]) }}
+                className="w-14 h-14 rounded-xl object-cover flex-shrink-0 cursor-zoom-in"
               />
             ) : (
               <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
@@ -300,7 +302,11 @@ export default function Inventory() {
                   <img
                     src={photoPreview || editing.photos[0]}
                     alt="preview"
-                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                    onClick={e => {
+                      const src = photoPreview || editing?.photos?.[0]
+                      if (src) { e.stopPropagation(); setLightboxSrc(src) }
+                    }}
+                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0 cursor-zoom-in"
                   />
                 ) : (
                   <div className="w-20 h-20 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -421,6 +427,20 @@ export default function Inventory() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div
+          onClick={() => setLightboxSrc(null)}
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 cursor-zoom-out"
+        >
+          <img
+            src={lightboxSrc}
+            alt="Full size"
+            className="max-w-full max-h-full rounded-xl object-contain"
+          />
         </div>
       )}
     </div>
