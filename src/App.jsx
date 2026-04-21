@@ -15,7 +15,7 @@ function Header({ userName, tenantName }) {
     <header className="bg-amber-700 text-white px-5 py-3 flex items-center justify-between gap-4">
       {/* Left: app name + company */}
       <div className="min-w-0">
-        <div className="text-lg font-bold tracking-wide leading-tight">GoldTrack</div>
+        <div className="text-lg font-bold tracking-wide leading-tight">GoldTrack2</div>
         {tenantName && (
           <div className="text-xs text-amber-200 truncate leading-tight mt-0.5">{tenantName}</div>
         )}
