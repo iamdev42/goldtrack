@@ -41,33 +41,66 @@ export function CustomerForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 px-6 py-4">
-      {/* Name */}
+      {/* Name — first + last side by side */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="first_name">First name</Label>
+          <Input
+            id="first_name"
+            autoFocus
+            placeholder="Sophie"
+            autoComplete="given-name"
+            {...register('first_name')}
+          />
+          {errors.first_name && (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.first_name.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="last_name">Last name</Label>
+          <Input
+            id="last_name"
+            placeholder="Hartmann"
+            autoComplete="family-name"
+            {...register('last_name')}
+          />
+          {errors.last_name && (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.last_name.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Company — separate from person */}
       <div className="space-y-1.5">
-        <Label htmlFor="name">Full name *</Label>
+        <Label htmlFor="company">Company / atelier (optional)</Label>
         <Input
-          id="name"
-          autoFocus
-          placeholder="e.g. Sophie Hartmann"
-          aria-invalid={!!errors.name}
-          {...register('name')}
+          id="company"
+          placeholder="e.g. Taylor & Co Jewellery"
+          autoComplete="organization"
+          {...register('company')}
         />
-        {errors.name && (
+        {errors.company && (
           <p role="alert" className="text-sm text-red-600">
-            {errors.name.message}
+            {errors.company.message}
           </p>
         )}
       </div>
 
-      {/* Phone + email side by side on wide screens */}
+      {/* Contact */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="phone">Phone</Label>
-          <Input id="phone" type="tel" placeholder="+41 79 000 00 00" {...register('phone')} />
-          {errors.phone && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.phone.message}
-            </p>
-          )}
+          <Input
+            id="phone"
+            type="tel"
+            placeholder="+41 79 000 00 00"
+            autoComplete="tel"
+            {...register('phone')}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
@@ -75,7 +108,7 @@ export function CustomerForm({
             id="email"
             type="email"
             placeholder="sophie@example.com"
-            aria-invalid={!!errors.email}
+            autoComplete="email"
             {...register('email')}
           />
           {errors.email && (
@@ -86,10 +119,46 @@ export function CustomerForm({
         </div>
       </div>
 
-      {/* Address */}
+      {/* Address — structured */}
       <div className="space-y-1.5">
-        <Label htmlFor="address">Address</Label>
-        <Input id="address" placeholder="Bahnhofstrasse 22, 8001 Zürich" {...register('address')} />
+        <Label htmlFor="street">Street</Label>
+        <Input
+          id="street"
+          placeholder="Bahnhofstrasse 22"
+          autoComplete="street-address"
+          {...register('street')}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-[120px_1fr_1fr]">
+        <div className="space-y-1.5">
+          <Label htmlFor="postcode">Postcode</Label>
+          <Input
+            id="postcode"
+            inputMode="numeric"
+            placeholder="8001"
+            autoComplete="postal-code"
+            {...register('postcode')}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="city">City</Label>
+          <Input
+            id="city"
+            placeholder="Zürich"
+            autoComplete="address-level2"
+            {...register('city')}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="country">Country</Label>
+          <Input
+            id="country"
+            placeholder="Switzerland"
+            autoComplete="country-name"
+            {...register('country')}
+          />
+        </div>
       </div>
 
       {/* Notes */}

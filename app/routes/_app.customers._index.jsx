@@ -40,12 +40,22 @@ export default function Customers() {
   const filtered = customers.filter((c) => {
     if (!search.trim()) return true
     const q = search.trim().toLowerCase()
-    return (
-      c.name.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q) ||
-      c.phone?.toLowerCase().includes(q) ||
-      c.address?.toLowerCase().includes(q)
-    )
+    const haystack = [
+      c.name,
+      c.first_name,
+      c.last_name,
+      c.company,
+      c.email,
+      c.phone,
+      c.street,
+      c.postcode,
+      c.city,
+      c.country,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(q)
   })
 
   function openAdd() {
@@ -176,10 +186,15 @@ export default function Customers() {
             defaultValues={
               editing
                 ? {
-                    name: editing.name || '',
+                    first_name: editing.first_name || '',
+                    last_name: editing.last_name || '',
+                    company: editing.company || '',
                     phone: editing.phone || '',
                     email: editing.email || '',
-                    address: editing.address || '',
+                    street: editing.street || '',
+                    postcode: editing.postcode || '',
+                    city: editing.city || '',
+                    country: editing.country || '',
                     notes: editing.notes || '',
                   }
                 : undefined

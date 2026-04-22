@@ -5,6 +5,8 @@ build/
 .env
 .env.local
 .env.*.local
+.env.import
+migration/reports/
 .DS_Store
 dist/
 coverage/
