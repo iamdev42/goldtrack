@@ -1,115 +1,131 @@
-# GoldTrack — Goldsmith Business Management POC
+# GoldTrack
 
-A mobile/tablet-first app for small goldsmith/jewellery businesses (1–5 employees) to replace hand-written books and loose notes.
+Business management SaaS for goldsmith and jewellery shops. Multi-tenant, mobile-first.
 
 **Live:** https://goldtrack.skergetd.workers.dev/
 
 ---
 
-## Progress
-
-### Infrastructure
-- [x] GitHub repo created (`iamdev42/goldtrack`)
-- [x] React + Vite + Tailwind scaffolded
-- [x] Supabase project connected
-- [x] Supabase schema migrated (tenants, customers, items, memberships + RLS)
-- [x] Tenant "Die Krone Goldschmiede" + admin user created
-- [x] Deployed to Cloudflare Workers (auto-deploy on push to `main`)
-
-### Phase 1 — POC
-- [x] Auth — login / logout (email + password via Supabase)
-- [ ] Customers — list all customers
-- [ ] Customers — add new customer
-- [ ] Customers — edit / delete customer
-- [ ] Customers — view customer detail + linked pieces
-- [ ] Inventory — list all items
-- [ ] Inventory — add new item (link to customer optional)
-- [ ] Inventory — edit item / update status
-- [ ] Inventory — filter by status
-
-### Phase 2 — If validated
-- [ ] Invoices / Billing — link pieces to customers, generate invoice
-- [ ] Multi-tenant onboarding — invite team members, separate shop accounts
-- [ ] Photo upload for items (Supabase Storage)
-
----
-
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Frontend | React + Vite |
-| Styling | Tailwind CSS |
-| Auth | Supabase Auth (email/password) |
-| Database | Supabase Postgres + RLS |
-| Hosting | Cloudflare Workers (static assets) |
-| CI/CD | Git push to `main` → auto deploy |
-
----
-
-## Data model
-
-### `tenants`
-| column | type |
-|---|---|
-| id | uuid PK |
-| name | text |
-| created_at | timestamptz |
-
-### `memberships`
-| column | type |
-|---|---|
-| user_id | uuid FK → auth.users |
-| tenant_id | uuid FK → tenants |
-| role | text (owner, staff) |
-
-### `customers`
-| column | type |
-|---|---|
-| id | uuid PK |
-| tenant_id | uuid FK → tenants |
-| name | text |
-| phone | text |
-| email | text |
-| address | text |
-| notes | text |
-| created_at | timestamptz |
-
-### `items`
-| column | type |
-|---|---|
-| id | uuid PK |
-| tenant_id | uuid FK → tenants |
-| customer_id | uuid nullable FK → customers |
-| name | text |
-| description | text |
-| category | text (ring, necklace, bracelet, earrings, other) |
-| material | text |
-| weight_g | numeric |
-| status | text (in_stock, with_customer, in_repair, sold) |
-| photos | text[] |
-| created_at | timestamptz |
+| Layer               | Choice                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Framework           | [React Router v7](https://reactrouter.com) (SPA mode)                                                                        |
+| Build               | [Vite 5](https://vitejs.dev)                                                                                                 |
+| UI                  | [Tailwind CSS v3](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) primitives (copied into `app/components/ui`) |
+| Data fetching       | [TanStack Query v5](https://tanstack.com/query)                                                                              |
+| Forms               | [react-hook-form](https://react-hook-form.com) + [Zod](https://zod.dev)                                                      |
+| Auth + DB + Storage | [Supabase](https://supabase.com)                                                                                             |
+| Hosting             | [Cloudflare Workers](https://workers.cloudflare.com) (static assets)                                                         |
+| Testing             | [Vitest](https://vitest.dev) (unit) + [Playwright](https://playwright.dev) (e2e)                                             |
+| CI                  | GitHub Actions                                                                                                               |
 
 ---
 
 ## Local development
 
 ```bash
-cp .env.example .env   # fill in Supabase URL + anon key
+# 1. Install
 npm install
-npm run dev            # http://localhost:5173
+
+# 2. Set up env vars
+cp .env.example .env
+# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY from your Supabase project
+
+# 3. Run dev server
+npm run dev
+# → http://localhost:5173
 ```
 
 ---
 
-## Add a new tenant (Supabase SQL Editor)
+## Scripts
+
+| Command                | What it does                                 |
+| ---------------------- | -------------------------------------------- |
+| `npm run dev`          | Start dev server with HMR                    |
+| `npm run build`        | Production build (outputs to `build/client`) |
+| `npm run deploy`       | Build + deploy to Cloudflare Workers         |
+| `npm run lint`         | ESLint check                                 |
+| `npm run format`       | Prettier format all files                    |
+| `npm run format:check` | Prettier check (used in CI)                  |
+| `npm test`             | Run Vitest unit tests once                   |
+| `npm run test:watch`   | Run Vitest in watch mode                     |
+| `npm run test:e2e`     | Run Playwright e2e tests                     |
+
+---
+
+## Project structure
+
+```
+app/
+├─ root.jsx                    Application root (providers, error boundary)
+├─ routes.js                   Explicit route table — single source of truth
+├─ app.css                     Tailwind entry + base styles
+├─ routes/
+│  ├─ _index.jsx              /          → redirect based on auth state
+│  ├─ _auth.jsx               layout: public (anon only)
+│  ├─ _auth.login.jsx         /login     → sign-in screen
+│  ├─ _app.jsx                layout: protected (requires session)
+│  ├─ _app.customers._index.jsx   /customers
+│  └─ _app.inventory._index.jsx   /inventory
+├─ components/
+│  ├─ ui/                     shadcn primitives — copied in, never imported as a lib
+│  │  ├─ button.jsx
+│  │  ├─ input.jsx
+│  │  └─ label.jsx
+│  └─ app/                    App-specific components
+│     ├─ Header.jsx
+│     └─ TabNav.jsx
+├─ lib/
+│  ├─ supabase.js             Single browser client
+│  ├─ auth.js                 requireSession / requireAnon for route loaders
+│  └─ utils.js                cn() class merging helper
+└─ hooks/
+   └─ useTenant.js            Load current tenant + user
+
+supabase/migrations/          SQL migrations — run in order on fresh DB
+.github/workflows/ci.yml      Lint + test + build + deploy on push to main
+```
+
+---
+
+## Supabase setup (fresh install)
+
+If you're standing up a brand new Supabase project for GoldTrack:
+
+1. **Create the project** at [supabase.com](https://supabase.com) → grab the
+   Project URL and anon key for your `.env`
+2. **Run the migrations in order** via SQL Editor:
+   - `supabase/migrations/001_initial_schema.sql` — tables, RLS, `is_member()` function
+   - `supabase/migrations/002_storage.sql` — `item-photos` bucket + policies
+   - `supabase/migrations/003_tenant_read_policy.sql` — tenants read policy
+   - `supabase/migrations/004_items_price_status.sql` — adds price, narrows statuses
+   - `supabase/migrations/005_customers_insert_policy.sql` — adds `WITH CHECK` for inserts
+3. **Create your first user** — Auth → Users → Invite user (or enable sign-ups)
+4. **Create a tenant and link the user** using the SQL snippet in the
+   [Adding a new shop](#adding-a-new-shop) section below
+
+Migrations are append-only — never edit an existing migration, add a new one.
+
+---
+
+## Multi-tenant model
+
+Each shop is a **tenant**. Users join a tenant through a **membership** row.
+Row-level security policies on `customers` and `items` enforce tenant isolation
+at the database level — even a bug in the frontend cannot leak data across shops.
+
+See `supabase/migrations/001_initial_schema.sql`.
+
+### Adding a new shop
 
 ```sql
 insert into tenants (name) values ('Shop Name');
 
 insert into memberships (user_id, tenant_id, role)
 values (
-  (select id from auth.users where email = 'user@example.com'),
+  (select id from auth.users where email = 'owner@example.com'),
   (select id from tenants where name = 'Shop Name'),
   'owner'
 );
@@ -117,27 +133,36 @@ values (
 
 ---
 
-
--- Fix customers policy to allow inserts                                                                                      
-  drop policy "tenant members only" on customers;
-                                                                                                                                
-  create policy "tenant members only" on customers                                                                              
-    using (is_member(tenant_id))                                                                                                
-    with check (is_member(tenant_id));                                                                                          
-                                                                                                                                
-  -- Same fix for items while we're here
-  drop policy "tenant members only" on items;
-
-  create policy "tenant members only" on items
-    using (is_member(tenant_id))
-    with check (is_member(tenant_id));
-    
-
 ## Deployment
 
-Push to `main` → Cloudflare Workers auto-deploys via `npx wrangler deploy`.
+### Cloudflare Workers setup
 
-Env vars required in Cloudflare build settings:
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `CLOUDFLARE_API_TOKEN`
+1. In Cloudflare dashboard, create a Worker named `goldtrack`
+2. Add env vars in GitHub → Settings → Secrets and variables → Actions:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `CLOUDFLARE_API_TOKEN` (create in Cloudflare → API Tokens, "Edit Workers" template)
+   - `CLOUDFLARE_ACCOUNT_ID` (Cloudflare dashboard → right sidebar)
+3. Push to `main` → GitHub Actions deploys automatically
+
+### Manual deploy
+
+```bash
+npm run deploy
+```
+
+---
+
+## Milestones
+
+- [x] **M1 — Shell** — scaffold, auth, protected routes, navigation, CI
+- [x] **M2 — Customers** — list, search, add, edit, delete, validation
+- [x] **M3 — Inventory** — list, filters, stats, add, edit, delete, photo upload, lightbox
+- [ ] **M4 — Polish** — Playwright e2e tests, accessibility audit, Sentry integration
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for coding conventions and the workflow
+for adding new features.
