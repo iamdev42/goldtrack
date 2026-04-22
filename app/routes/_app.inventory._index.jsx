@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Package, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, Package, Plus, X } from 'lucide-react'
 import { useTenant } from '~/hooks/useTenant'
 import { useCustomers } from '~/lib/queries/customers'
 import {
@@ -8,6 +8,7 @@ import {
   useUpdateItem,
   useDeleteItem,
   uploadItemPhoto,
+  removeItemPhotos,
 } from '~/lib/queries/items'
 import { STATUS_LABELS } from '~/lib/validations/item'
 import { Button } from '~/components/ui/button'
@@ -47,7 +48,9 @@ export default function Inventory() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [formError, setFormError] = useState(null)
-  const [lightboxSrc, setLightboxSrc] = useState(null)
+
+  // Lightbox: holds the photo array + current index, not just one URL
+  const [lightbox, setLightbox] = useState(null) // { photos: string[], idx: number } | null
 
   const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
@@ -80,34 +83,60 @@ export default function Inventory() {
     setFormError(null)
   }
 
-  async function handleSubmit(values, photoFile) {
+  /**
+   * Handle save. The form gives us:
+   *   values        — text fields
+   *   photoChanges  — { keep: string[], add: File[], remove: string[] }
+   *
+   * On create: insert row → upload all `add` files → patch the photos array.
+   * On edit:   update row → upload `add` → delete `remove` from Storage → patch photos array.
+   */
+  async function handleSubmit(values, photoChanges) {
     setFormError(null)
+    const { keep, add, remove } = photoChanges
+
     try {
       let savedId = editing?.id
-      let currentPhotos = editing?.photos || []
 
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, input: values })
       } else {
         const created = await createMutation.mutateAsync(values)
         savedId = created.id
-        currentPhotos = []
       }
 
-      // Upload new photo (if any) after the row exists
-      if (photoFile && savedId) {
+      // Upload any new photos in parallel — wait for all
+      let newUrls = []
+      if (add.length && savedId) {
         try {
-          const url = await uploadItemPhoto({ tenantId, itemId: savedId, file: photoFile })
-          await updateMutation.mutateAsync({
-            id: savedId,
-            input: values,
-            photos: [...currentPhotos, url],
-          })
+          newUrls = await Promise.all(
+            add.map((file) => uploadItemPhoto({ tenantId, itemId: savedId, file }))
+          )
         } catch (uploadErr) {
-          // Row is saved — show a soft warning but don't roll back
           console.error('[Inventory] photo upload failed:', uploadErr.message)
-          setFormError('Item saved but photo upload failed. Try again from edit.')
+          setFormError('Item saved but some photos could not be uploaded. Try again from edit.')
           return
+        }
+      }
+
+      // Persist the final photos array (kept existing + newly uploaded)
+      const finalPhotos = [...keep, ...newUrls]
+      const photosChanged = add.length > 0 || remove.length > 0
+      if (photosChanged && savedId) {
+        await updateMutation.mutateAsync({
+          id: savedId,
+          input: values,
+          photos: finalPhotos,
+        })
+      }
+
+      // Clean up removed photos from Storage (after the row no longer references them)
+      if (remove.length) {
+        try {
+          await removeItemPhotos(remove)
+        } catch (cleanupErr) {
+          // Item is saved correctly; this is just storage hygiene
+          console.error('[Inventory] photo cleanup failed:', cleanupErr.message)
         }
       }
 
@@ -214,7 +243,9 @@ export default function Inventory() {
               key={item.id}
               item={item}
               onClick={() => openEdit(item)}
-              onThumbClick={() => setLightboxSrc(item.photos?.[0])}
+              onThumbClick={() =>
+                item.photos?.length && setLightbox({ photos: item.photos, idx: 0 })
+              }
             />
           ))}
         </ul>
@@ -242,7 +273,7 @@ export default function Inventory() {
                   }
                 : undefined
             }
-            existingPhoto={editing?.photos?.[0]}
+            existingPhotos={editing?.photos || []}
             customers={customers}
             onSubmit={handleSubmit}
             onDelete={editing ? handleDelete : undefined}
@@ -254,20 +285,88 @@ export default function Inventory() {
         </DialogContent>
       </Dialog>
 
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <button
-          type="button"
-          onClick={() => setLightboxSrc(null)}
-          aria-label="Close photo"
-          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/90 p-4"
-        >
-          <img
-            src={lightboxSrc}
-            alt=""
-            className="max-h-full max-w-full rounded-xl object-contain"
-          />
-        </button>
+      {/* Lightbox with arrow navigation */}
+      {lightbox && (
+        <Lightbox
+          photos={lightbox.photos}
+          startIdx={lightbox.idx}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function Lightbox({ photos, startIdx, onClose }) {
+  const [idx, setIdx] = useState(startIdx)
+
+  function prev(e) {
+    e?.stopPropagation()
+    setIdx((i) => (i - 1 + photos.length) % photos.length)
+  }
+  function next(e) {
+    e?.stopPropagation()
+    setIdx((i) => (i + 1) % photos.length)
+  }
+
+  // Keyboard navigation: ←  →  Esc
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') prev()
+      if (e.key === 'ArrowRight') next()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {photos.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={prev}
+            aria-label="Previous photo"
+            className="absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Next photo"
+            className="absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </>
+      )}
+
+      <img
+        src={photos[idx]}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-full max-w-full rounded-xl object-contain"
+      />
+
+      {photos.length > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white">
+          {idx + 1} / {photos.length}
+        </div>
       )}
     </div>
   )

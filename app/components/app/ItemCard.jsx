@@ -12,6 +12,7 @@ import { STATUS_COLORS, STATUS_LABELS } from '~/lib/validations/item'
  */
 export function ItemCard({ item, onClick, onThumbClick }) {
   const thumb = item.photos?.[0]
+  const photoCount = item.photos?.length || 0
 
   return (
     <li>
@@ -24,10 +25,18 @@ export function ItemCard({ item, onClick, onThumbClick }) {
               e.stopPropagation()
               onThumbClick?.()
             }}
-            aria-label={`View photo of ${item.name}`}
-            className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400"
+            aria-label={`View photos of ${item.name}`}
+            className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400"
           >
             <img src={thumb} alt="" className="h-full w-full object-cover" />
+            {photoCount > 1 && (
+              <span
+                aria-label={`${photoCount} photos`}
+                className="absolute bottom-1 right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-black/70 px-1.5 text-[10px] font-semibold text-white"
+              >
+                {photoCount}
+              </span>
+            )}
           </button>
         ) : (
           <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-brand-100">

@@ -133,3 +133,19 @@ export function photoPathFromUrl(url) {
     return null
   }
 }
+
+/** Maximum number of photos per item. Enforced in the form UI. */
+export const MAX_ITEM_PHOTOS = 3
+
+/**
+ * Remove a list of photos from Storage by their public URLs.
+ * Used when the user removes existing photos in the edit dialog.
+ *
+ * @param {string[]} urls
+ */
+export async function removeItemPhotos(urls) {
+  const paths = urls.map(photoPathFromUrl).filter(Boolean)
+  if (!paths.length) return
+  const { error } = await supabase.storage.from('item-photos').remove(paths)
+  if (error) throw error
+}

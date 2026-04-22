@@ -1,11 +1,12 @@
-import { useRef, useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Camera } from 'lucide-react'
+import { Camera, Plus, X } from 'lucide-react'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
+import { MAX_ITEM_PHOTOS } from '~/lib/queries/items'
 import {
   itemSchema,
   emptyItem,
@@ -14,16 +15,26 @@ import {
   ITEM_STATUSES,
   STATUS_LABELS,
 } from '~/lib/validations/item'
+import { cn } from '~/lib/utils'
 
 /**
- * Add/edit item form. Photo upload is deferred — the parent receives the File
- * via `onSubmit` and handles upload after the item row is saved.
+ * Add/edit item form.
+ *
+ * Multi-photo behaviour:
+ *  - Existing photos (URLs) come in via `existingPhotos`. The user can remove any.
+ *  - New photos are picked locally and live in component state until submit.
+ *  - On submit the parent receives:
+ *      values        — the form fields
+ *      photoChanges  — { keep: string[], add: File[], remove: string[] }
  *
  * @param {{
  *   defaultValues?: import('~/lib/validations/item').ItemInput,
- *   existingPhoto?: string | null,
+ *   existingPhotos?: string[],
  *   customers: Array<{ id: string, name: string }>,
- *   onSubmit: (values: import('~/lib/validations/item').ItemInput, photoFile: File | null) => void | Promise<void>,
+ *   onSubmit: (
+ *     values: import('~/lib/validations/item').ItemInput,
+ *     photoChanges: { keep: string[], add: File[], remove: string[] },
+ *   ) => void | Promise<void>,
  *   onDelete?: () => void,
  *   onCancel: () => void,
  *   submitting?: boolean,
@@ -33,7 +44,7 @@ import {
  */
 export function ItemForm({
   defaultValues = emptyItem,
-  existingPhoto = null,
+  existingPhotos = [],
   customers,
   onSubmit,
   onDelete,
@@ -52,69 +63,150 @@ export function ItemForm({
     mode: 'onBlur',
   })
 
+  // Photo state ---------------------------------------------------
+  // `keep`   = URLs of existing photos still on the item
+  // `add`    = new File objects + their preview blob URLs
+  // `remove` = URLs of existing photos the user removed (deleted from Storage on save)
+  const [keep, setKeep] = useState(existingPhotos)
+  const [add, setAdd] = useState([]) // [{ file, preview }]
+  const [remove, setRemove] = useState([])
+  const [activeIdx, setActiveIdx] = useState(0)
+
   const fileInputRef = useRef(null)
-  const [pendingPhoto, setPendingPhoto] = useState(null)
-  const [pendingPreview, setPendingPreview] = useState(null)
 
-  // Clean up blob URL when the preview changes or unmount happens
+  // Reset photo state when the dialog reopens with a different item
   useEffect(() => {
-    return () => {
-      if (pendingPreview) URL.revokeObjectURL(pendingPreview)
-    }
-  }, [pendingPreview])
+    setKeep(existingPhotos)
+    setAdd([])
+    setRemove([])
+    setActiveIdx(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingPhotos.join('|')])
 
-  function handleFileChange(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (pendingPreview) URL.revokeObjectURL(pendingPreview)
-    setPendingPhoto(file)
-    setPendingPreview(URL.createObjectURL(file))
+  // Free blob URLs on unmount
+  useEffect(() => {
+    return () => add.forEach((p) => URL.revokeObjectURL(p.preview))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Photos currently shown in the gallery, in order:
+  // existing kept ones first, then new pending ones.
+  const gallery = [
+    ...keep.map((url) => ({ kind: 'existing', url, key: url })),
+    ...add.map((p, i) => ({ kind: 'pending', url: p.preview, file: p.file, key: `pending-${i}` })),
+  ]
+  const safeIdx = Math.min(activeIdx, Math.max(0, gallery.length - 1))
+  const hero = gallery[safeIdx]
+  const canAdd = gallery.length < MAX_ITEM_PHOTOS
+
+  function onPickFiles(e) {
+    const files = Array.from(e.target.files || [])
     e.target.value = ''
+    if (!files.length) return
+    const slotsLeft = MAX_ITEM_PHOTOS - gallery.length
+    const accepted = files.slice(0, slotsLeft)
+    const newPending = accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }))
+    setAdd((prev) => [...prev, ...newPending])
   }
 
-  const previewSrc = pendingPreview || existingPhoto
+  function removePhoto(item) {
+    if (item.kind === 'existing') {
+      setKeep((prev) => prev.filter((u) => u !== item.url))
+      setRemove((prev) => [...prev, item.url])
+    } else {
+      URL.revokeObjectURL(item.url)
+      setAdd((prev) => prev.filter((p) => p.preview !== item.url))
+    }
+    setActiveIdx(0)
+  }
 
   return (
     <form
-      onSubmit={handleSubmit((values) => onSubmit(values, pendingPhoto))}
+      onSubmit={handleSubmit((values) =>
+        onSubmit(values, { keep, add: add.map((p) => p.file), remove })
+      )}
       className="space-y-4 px-6 py-4"
     >
-      {/* Photo upload */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => fileInputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            fileInputRef.current?.click()
-          }
-        }}
-        className="flex cursor-pointer items-center gap-4 rounded-xl border-2 border-dashed border-brand-200 p-3 transition-colors hover:border-brand-400 focus:border-brand-400 focus:outline-none"
-      >
-        {previewSrc ? (
-          <img
-            src={previewSrc}
-            alt="preview"
-            className="h-20 w-20 flex-shrink-0 rounded-lg object-cover"
-          />
-        ) : (
-          <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-brand-50">
-            <Camera className="h-8 w-8 text-brand-300" aria-hidden />
+      {/* Photo gallery — hero + thumbnail row */}
+      <div className="space-y-3">
+        <Label>
+          Photos{' '}
+          <span className="text-xs font-normal text-gray-400">
+            ({gallery.length} / {MAX_ITEM_PHOTOS})
+          </span>
+        </Label>
+
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-xl bg-brand-50">
+          {hero ? (
+            <>
+              <img src={hero.url} alt="item" className="aspect-[4/3] w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removePhoto(hero)}
+                aria-label="Remove this photo"
+                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-brand-200 text-brand-400 transition-colors hover:border-brand-400 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            >
+              <Camera className="h-8 w-8" aria-hidden />
+              <span className="text-sm font-medium">Add a photo</span>
+              <span className="text-xs text-gray-400">Up to {MAX_ITEM_PHOTOS} per item</span>
+            </button>
+          )}
+        </div>
+
+        {/* Thumbnail row */}
+        {(gallery.length > 0 || canAdd) && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {gallery.map((item, i) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setActiveIdx(i)}
+                aria-label={`View photo ${i + 1}`}
+                className={cn(
+                  'relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-brand-400',
+                  i === safeIdx
+                    ? 'border-brand-600'
+                    : 'border-transparent opacity-70 hover:opacity-100'
+                )}
+              >
+                <img src={item.url} alt="" className="h-full w-full object-cover" />
+                {item.kind === 'pending' && (
+                  <span className="absolute bottom-0 left-0 right-0 bg-brand-600/85 py-0.5 text-center text-[10px] font-medium uppercase tracking-wider text-white">
+                    new
+                  </span>
+                )}
+              </button>
+            ))}
+            {canAdd && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Add another photo"
+                className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-brand-200 text-brand-400 transition-colors hover:border-brand-400 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              >
+                <Plus className="h-5 w-5" aria-hidden />
+              </button>
+            )}
           </div>
         )}
-        <div>
-          <p className="text-sm font-medium text-brand-700">
-            {pendingPreview ? 'Change photo' : existingPhoto ? 'Replace photo' : 'Add photo'}
-          </p>
-          <p className="mt-0.5 text-xs text-gray-400">Tap to select an image</p>
-        </div>
+
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
-          onChange={handleFileChange}
+          onChange={onPickFiles}
         />
       </div>
 
@@ -257,10 +349,7 @@ export function ItemForm({
   )
 }
 
-/**
- * Plain <select> styled to match the Input component.
- * Local helper — small enough not to warrant its own file.
- */
+/** Plain <select> styled to match the Input component. */
 function SelectBase({ className = '', children, ...props }) {
   return (
     <select
