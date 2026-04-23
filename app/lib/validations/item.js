@@ -8,17 +8,6 @@ import { z } from 'zod'
  */
 export const ITEM_CATEGORIES = ['ring', 'necklace', 'bracelet', 'earrings', 'other']
 export const ITEM_STATUSES = ['for_sale', 'sold', 'reserved']
-export const ITEM_MATERIALS = [
-  'Yellow Gold',
-  'White Gold',
-  'Rose Gold',
-  'Platinum',
-  'Silver',
-  'Palladium',
-  'Titanium',
-  'Stainless Steel',
-  'Other',
-]
 
 /** Human labels for statuses — used in UI. */
 export const STATUS_LABELS = {
@@ -43,7 +32,12 @@ export const itemSchema = z.object({
 
   category: z.enum(ITEM_CATEGORIES).optional().or(z.literal('')),
 
+  // Legacy free-text material (kept for backward compatibility with old items).
   material: z.string().trim().max(60).optional().or(z.literal('')),
+
+  // New: link to a row in the materials registry. Optional — an item doesn't
+  // have to have a material (e.g. while being designed or repaired).
+  material_id: z.string().uuid().optional().or(z.literal('')),
 
   // Strings from HTML number inputs; coerce to numbers (or undefined) on submit.
   weight_g: z
@@ -89,6 +83,7 @@ export const emptyItem = {
   description: '',
   category: '',
   material: '',
+  material_id: '',
   weight_g: '',
   price: '',
   status: 'for_sale',
@@ -108,6 +103,7 @@ export function itemToDbPayload(input) {
     description: input.description?.trim() || null,
     category: input.category || null,
     material: input.material || null,
+    material_id: input.material_id || null,
     weight_g: input.weight_g ? Number(input.weight_g) : null,
     price: input.price ? Number(input.price) : null,
     status: input.status || 'for_sale',

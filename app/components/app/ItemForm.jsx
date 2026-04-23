@@ -11,7 +11,6 @@ import {
   itemSchema,
   emptyItem,
   ITEM_CATEGORIES,
-  ITEM_MATERIALS,
   ITEM_STATUSES,
   STATUS_LABELS,
 } from '~/lib/validations/item'
@@ -31,6 +30,7 @@ import { cn } from '~/lib/utils'
  *   defaultValues?: import('~/lib/validations/item').ItemInput,
  *   existingPhotos?: string[],
  *   customers: Array<{ id: string, name: string }>,
+ *   materials: Array<{ id: string, name: string, unit: string | null, cost: number }>,
  *   onSubmit: (
  *     values: import('~/lib/validations/item').ItemInput,
  *     photoChanges: { keep: string[], add: File[], remove: string[] },
@@ -46,6 +46,7 @@ export function ItemForm({
   defaultValues = emptyItem,
   existingPhotos = [],
   customers,
+  materials = [],
   onSubmit,
   onDelete,
   onCancel,
@@ -254,15 +255,30 @@ export function ItemForm({
       {/* Material + weight */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="material">Material</Label>
-          <SelectBase id="material" {...register('material')}>
-            <option value="">— Select —</option>
-            {ITEM_MATERIALS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </SelectBase>
+          <Label htmlFor="material_id">Material</Label>
+          {materials.length > 0 ? (
+            <SelectBase id="material_id" {...register('material_id')}>
+              <option value="">— Select —</option>
+              {materials.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.unit ? ` (per ${m.unit})` : ''}
+                </option>
+              ))}
+            </SelectBase>
+          ) : (
+            <div className="flex h-11 items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 text-sm text-gray-500">
+              <span>No materials yet.</span>
+              <a
+                href="/materials"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-brand-700 underline-offset-2 hover:underline"
+              >
+                Add one →
+              </a>
+            </div>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="weight_g">Weight (g)</Label>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Package, Plus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Package, Plus, Search, X } from 'lucide-react'
 import { useTenant } from '~/hooks/useTenant'
 import { useCustomers } from '~/lib/queries/customers'
+import { useMaterials } from '~/lib/queries/materials'
 import {
   useItems,
   useCreateItem,
@@ -12,6 +13,7 @@ import {
 } from '~/lib/queries/items'
 import { STATUS_LABELS } from '~/lib/validations/item'
 import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -39,12 +41,14 @@ export default function Inventory() {
 
   const { data: items = [], isLoading, error } = useItems(tenantId)
   const { data: customers = [] } = useCustomers(tenantId)
+  const { data: materials = [] } = useMaterials(tenantId)
 
   const createMutation = useCreateItem(tenantId)
   const updateMutation = useUpdateItem(tenantId)
   const deleteMutation = useDeleteItem(tenantId)
 
   const [filter, setFilter] = useState(null)
+  const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [formError, setFormError] = useState(null)
@@ -54,10 +58,25 @@ export default function Inventory() {
 
   const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
-  const filtered = useMemo(
-    () => (filter ? items.filter((i) => i.status === filter) : items),
-    [items, filter]
-  )
+  const filtered = useMemo(() => {
+    const byStatus = filter ? items.filter((i) => i.status === filter) : items
+    const q = search.trim().toLowerCase()
+    if (!q) return byStatus
+    return byStatus.filter((i) => {
+      const haystack = [
+        i.name,
+        i.description,
+        i.category,
+        i.material, // legacy free-text
+        i.material_ref?.name, // joined from materials table
+        i.customer?.name,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [items, filter, search])
 
   const totalValue = useMemo(
     () => filtered.reduce((sum, i) => sum + (Number(i.price) || 0), 0),
@@ -190,6 +209,20 @@ export default function Inventory() {
         </div>
       )}
 
+      {/* Search */}
+      {items.length > 0 && (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Search by name, material, customer…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      )}
+
       {/* Stats */}
       {filtered.length > 0 && (
         <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-3 shadow-sm">
@@ -266,6 +299,7 @@ export default function Inventory() {
                     description: editing.description || '',
                     category: editing.category || '',
                     material: editing.material || '',
+                    material_id: editing.material_id || '',
                     weight_g: editing.weight_g != null ? String(editing.weight_g) : '',
                     price: editing.price != null ? String(editing.price) : '',
                     status: editing.status || 'for_sale',
@@ -275,6 +309,7 @@ export default function Inventory() {
             }
             existingPhotos={editing?.photos || []}
             customers={customers}
+            materials={materials}
             onSubmit={handleSubmit}
             onDelete={editing ? handleDelete : undefined}
             onCancel={closeDialog}

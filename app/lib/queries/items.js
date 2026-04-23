@@ -26,7 +26,7 @@ export function useItems(tenantId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('items')
-        .select('*, customer:customers(name)')
+        .select('*, customer:customers(name), material_ref:materials(id, name, unit, cost)')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
       if (error) throw error

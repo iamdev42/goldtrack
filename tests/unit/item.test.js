@@ -61,9 +61,19 @@ describe('itemToDbPayload', () => {
     expect(payload.description).toBeNull()
     expect(payload.category).toBeNull()
     expect(payload.material).toBeNull()
+    expect(payload.material_id).toBeNull()
     expect(payload.weight_g).toBeNull()
     expect(payload.price).toBeNull()
     expect(payload.customer_id).toBeNull()
+  })
+
+  it('stores material_id when provided', () => {
+    const payload = itemToDbPayload({
+      ...emptyItem,
+      name: 'Ring',
+      material_id: '550e8400-e29b-41d4-a716-446655440000',
+    })
+    expect(payload.material_id).toBe('550e8400-e29b-41d4-a716-446655440000')
   })
 
   it('trims the name', () => {
