@@ -24,5 +24,6 @@ export default [
   layout('routes/_app.jsx', [
     ...prefix('customers', [index('routes/_app.customers._index.jsx')]),
     ...prefix('inventory', [index('routes/_app.inventory._index.jsx')]),
+    ...prefix('materials', [index('routes/_app.materials._index.jsx')]),
   ]),
 ]
