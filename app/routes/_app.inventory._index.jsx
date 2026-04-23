@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Package, Plus, Search, X } from 'lucide-react'
 import { useTenant } from '~/hooks/useTenant'
 import { useCustomers } from '~/lib/queries/customers'
@@ -10,6 +11,7 @@ import {
   useDeleteItem,
   uploadItemPhoto,
   removeItemPhotos,
+  saveItemBom,
 } from '~/lib/queries/items'
 import { STATUS_LABELS } from '~/lib/validations/item'
 import { Button } from '~/components/ui/button'
@@ -38,6 +40,7 @@ const FILTERS = [
 
 export default function Inventory() {
   const { tenantId } = useTenant()
+  const qc = useQueryClient()
 
   const { data: items = [], isLoading, error } = useItems(tenantId)
   const { data: customers = [] } = useCustomers(tenantId)
@@ -63,14 +66,9 @@ export default function Inventory() {
     const q = search.trim().toLowerCase()
     if (!q) return byStatus
     return byStatus.filter((i) => {
-      const haystack = [
-        i.name,
-        i.description,
-        i.category,
-        i.material, // legacy free-text
-        i.material_ref?.name, // joined from materials table
-        i.customer?.name,
-      ]
+      // Pull every material name from the item's BOM into the searchable text
+      const bomNames = (i.bom || []).map((line) => line.material?.name).filter(Boolean)
+      const haystack = [i.name, i.description, i.category, ...bomNames, i.customer?.name]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -106,11 +104,15 @@ export default function Inventory() {
    * Handle save. The form gives us:
    *   values        — text fields
    *   photoChanges  — { keep: string[], add: File[], remove: string[] }
+   *   bom           — array of { material_id, quantity }
    *
-   * On create: insert row → upload all `add` files → patch the photos array.
-   * On edit:   update row → upload `add` → delete `remove` from Storage → patch photos array.
+   * Order of operations:
+   *   1. Insert/update item row
+   *   2. Upload any new photos, patch the photos array
+   *   3. Save the BOM (atomic via save_item_bom RPC)
+   *   4. Clean up removed photos from Storage
    */
-  async function handleSubmit(values, photoChanges) {
+  async function handleSubmit(values, photoChanges, bom) {
     setFormError(null)
     const { keep, add, remove } = photoChanges
 
@@ -149,6 +151,18 @@ export default function Inventory() {
         })
       }
 
+      // Save the BOM via the atomic RPC. Always fires: an empty array
+      // correctly wipes out any existing lines.
+      if (savedId) {
+        try {
+          await saveItemBom(savedId, bom)
+        } catch (bomErr) {
+          console.error('[Inventory] BOM save failed:', bomErr.message)
+          setFormError(`Item saved but the bill of materials could not be saved: ${bomErr.message}`)
+          return
+        }
+      }
+
       // Clean up removed photos from Storage (after the row no longer references them)
       if (remove.length) {
         try {
@@ -158,6 +172,9 @@ export default function Inventory() {
           console.error('[Inventory] photo cleanup failed:', cleanupErr.message)
         }
       }
+
+      // Invalidate the list query so BOM changes show up immediately
+      qc.invalidateQueries({ queryKey: ['items', 'list', tenantId] })
 
       closeDialog()
     } catch (err) {
@@ -298,8 +315,6 @@ export default function Inventory() {
                     name: editing.name || '',
                     description: editing.description || '',
                     category: editing.category || '',
-                    material: editing.material || '',
-                    material_id: editing.material_id || '',
                     weight_g: editing.weight_g != null ? String(editing.weight_g) : '',
                     price: editing.price != null ? String(editing.price) : '',
                     status: editing.status || 'for_sale',
@@ -308,6 +323,14 @@ export default function Inventory() {
                 : undefined
             }
             existingPhotos={editing?.photos || []}
+            defaultBom={
+              editing?.bom
+                ? editing.bom.map((line) => ({
+                    material_id: line.material_id,
+                    quantity: String(line.quantity),
+                  }))
+                : []
+            }
             customers={customers}
             materials={materials}
             onSubmit={handleSubmit}

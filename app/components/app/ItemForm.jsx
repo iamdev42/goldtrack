@@ -13,7 +13,9 @@ import {
   ITEM_CATEGORIES,
   ITEM_STATUSES,
   STATUS_LABELS,
+  computeBomCost,
 } from '~/lib/validations/item'
+import { BomEditor } from '~/components/app/BomEditor'
 import { cn } from '~/lib/utils'
 
 /**
@@ -25,15 +27,18 @@ import { cn } from '~/lib/utils'
  *  - On submit the parent receives:
  *      values        — the form fields
  *      photoChanges  — { keep: string[], add: File[], remove: string[] }
+ *      bom           — array of { material_id, quantity } lines
  *
  * @param {{
  *   defaultValues?: import('~/lib/validations/item').ItemInput,
  *   existingPhotos?: string[],
+ *   defaultBom?: Array<{ material_id: string, quantity: string | number }>,
  *   customers: Array<{ id: string, name: string }>,
  *   materials: Array<{ id: string, name: string, unit: string | null, cost: number }>,
  *   onSubmit: (
  *     values: import('~/lib/validations/item').ItemInput,
  *     photoChanges: { keep: string[], add: File[], remove: string[] },
+ *     bom: Array<{ material_id: string, quantity: number }>,
  *   ) => void | Promise<void>,
  *   onDelete?: () => void,
  *   onCancel: () => void,
@@ -45,6 +50,7 @@ import { cn } from '~/lib/utils'
 export function ItemForm({
   defaultValues = emptyItem,
   existingPhotos = [],
+  defaultBom = [],
   customers,
   materials = [],
   onSubmit,
@@ -57,6 +63,8 @@ export function ItemForm({
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(itemSchema),
@@ -89,6 +97,28 @@ export function ItemForm({
     return () => add.forEach((p) => URL.revokeObjectURL(p.preview))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // BOM state -----------------------------------------------------
+  // Kept in local state (not react-hook-form) because it's a nested array
+  // of complex rows; RHF fieldArray adds complexity we don't need here.
+  const [bom, setBom] = useState(defaultBom)
+
+  // Reset BOM when the dialog reopens with a different item
+  useEffect(() => {
+    setBom(defaultBom)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(defaultBom)])
+
+  // Live cost preview + auto-fill price when it's blank.
+  // We intentionally DON'T overwrite a price the user has typed themselves.
+  const bomCost = computeBomCost(bom, materials)
+  const watchedPrice = watch('price')
+  useEffect(() => {
+    if (!watchedPrice && bomCost > 0) {
+      setValue('price', bomCost.toFixed(2), { shouldDirty: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bomCost])
 
   // Photos currently shown in the gallery, in order:
   // existing kept ones first, then new pending ones.
@@ -123,9 +153,19 @@ export function ItemForm({
 
   return (
     <form
-      onSubmit={handleSubmit((values) =>
-        onSubmit(values, { keep, add: add.map((p) => p.file), remove })
-      )}
+      onSubmit={handleSubmit((values) => {
+        // Sanitise BOM before handing it to the parent:
+        // - drop lines without material_id
+        // - drop lines with invalid/zero quantity
+        // - coerce quantity to a plain number
+        const cleanBom = bom
+          .filter((l) => l.material_id && Number(l.quantity) > 0)
+          .map((l) => ({
+            material_id: l.material_id,
+            quantity: Number(l.quantity),
+          }))
+        onSubmit(values, { keep, add: add.map((p) => p.file), remove }, cleanBom)
+      })}
       className="space-y-4 px-6 py-4"
     >
       {/* Photo gallery — hero + thumbnail row */}
@@ -252,50 +292,25 @@ export function ItemForm({
         </div>
       </div>
 
-      {/* Material + weight */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="material_id">Material</Label>
-          {materials.length > 0 ? (
-            <SelectBase id="material_id" {...register('material_id')}>
-              <option value="">— Select —</option>
-              {materials.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                  {m.unit ? ` (per ${m.unit})` : ''}
-                </option>
-              ))}
-            </SelectBase>
-          ) : (
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 text-sm text-gray-500">
-              <span>No materials yet.</span>
-              <a
-                href="/materials"
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-brand-700 underline-offset-2 hover:underline"
-              >
-                Add one →
-              </a>
-            </div>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="weight_g">Weight (g)</Label>
-          <Input
-            id="weight_g"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="0.00"
-            {...register('weight_g')}
-          />
-          {errors.weight_g && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.weight_g.message}
-            </p>
-          )}
-        </div>
+      {/* Bill of materials */}
+      <BomEditor lines={bom} materials={materials} onChange={setBom} />
+
+      {/* Weight */}
+      <div className="space-y-1.5">
+        <Label htmlFor="weight_g">Total weight (g)</Label>
+        <Input
+          id="weight_g"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          {...register('weight_g')}
+        />
+        {errors.weight_g && (
+          <p role="alert" className="text-sm text-red-600">
+            {errors.weight_g.message}
+          </p>
+        )}
       </div>
 
       {/* Price */}

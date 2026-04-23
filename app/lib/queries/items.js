@@ -26,13 +26,33 @@ export function useItems(tenantId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('items')
-        .select('*, customer:customers(name), material_ref:materials(id, name, unit, cost)')
+        .select(
+          '*, customer:customers(name), bom:item_materials(id, material_id, quantity, material:materials(id, name, unit, cost))'
+        )
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
       if (error) throw error
       return data
     },
   })
+}
+
+// ── BOM save ──────────────────────────────────────────────────
+
+/**
+ * Atomically replace all BOM lines for an item. Wraps the server-side RPC
+ * `save_item_bom` created in migration 009. Either every line is saved or
+ * none are.
+ *
+ * @param {string} itemId
+ * @param {Array<{ material_id: string, quantity: number }>} lines
+ */
+export async function saveItemBom(itemId, lines) {
+  const { error } = await supabase.rpc('save_item_bom', {
+    p_item_id: itemId,
+    p_lines: lines,
+  })
+  if (error) throw error
 }
 
 // ── Mutations ─────────────────────────────────────────────────

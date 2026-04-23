@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { emptyItem, itemSchema, itemToDbPayload } from '~/lib/validations/item'
+import {
+  bomLineSchema,
+  computeBomCost,
+  emptyItem,
+  itemSchema,
+  itemToDbPayload,
+} from '~/lib/validations/item'
 
 describe('itemSchema', () => {
   it('accepts minimal valid item (name + default status)', () => {
@@ -60,20 +66,9 @@ describe('itemToDbPayload', () => {
     const payload = itemToDbPayload({ ...emptyItem, name: 'Ring' })
     expect(payload.description).toBeNull()
     expect(payload.category).toBeNull()
-    expect(payload.material).toBeNull()
-    expect(payload.material_id).toBeNull()
     expect(payload.weight_g).toBeNull()
     expect(payload.price).toBeNull()
     expect(payload.customer_id).toBeNull()
-  })
-
-  it('stores material_id when provided', () => {
-    const payload = itemToDbPayload({
-      ...emptyItem,
-      name: 'Ring',
-      material_id: '550e8400-e29b-41d4-a716-446655440000',
-    })
-    expect(payload.material_id).toBe('550e8400-e29b-41d4-a716-446655440000')
   })
 
   it('trims the name', () => {
@@ -89,5 +84,95 @@ describe('itemToDbPayload', () => {
   it('defaults status to for_sale when missing', () => {
     const payload = itemToDbPayload({ ...emptyItem, name: 'Ring', status: '' })
     expect(payload.status).toBe('for_sale')
+  })
+})
+
+describe('bomLineSchema', () => {
+  const validId = '550e8400-e29b-41d4-a716-446655440000'
+
+  it('accepts a valid BOM line', () => {
+    const result = bomLineSchema.safeParse({ material_id: validId, quantity: '4.8' })
+    expect(result.success).toBe(true)
+    expect(result.data.quantity).toBe(4.8)
+  })
+
+  it('accepts numeric quantity (not just string)', () => {
+    const result = bomLineSchema.safeParse({ material_id: validId, quantity: 2 })
+    expect(result.success).toBe(true)
+    expect(result.data.quantity).toBe(2)
+  })
+
+  it('rejects a non-uuid material_id', () => {
+    const result = bomLineSchema.safeParse({ material_id: 'not-a-uuid', quantity: 1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects zero quantity', () => {
+    const result = bomLineSchema.safeParse({ material_id: validId, quantity: 0 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects negative quantity', () => {
+    const result = bomLineSchema.safeParse({ material_id: validId, quantity: -1 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects non-numeric quantity', () => {
+    const result = bomLineSchema.safeParse({ material_id: validId, quantity: 'lots' })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('computeBomCost', () => {
+  const materials = [
+    { id: 'gold', name: 'Gold', unit: 'gram', cost: 85 },
+    { id: 'diamond', name: 'Diamond', unit: 'piece', cost: 2000 },
+    { id: 'labour', name: 'Labour', unit: 'hour', cost: 120 },
+  ]
+
+  it('returns 0 for an empty BOM', () => {
+    expect(computeBomCost([], materials)).toBe(0)
+  })
+
+  it('returns 0 for non-array input (defensive)', () => {
+    expect(computeBomCost(null, materials)).toBe(0)
+    expect(computeBomCost(undefined, materials)).toBe(0)
+  })
+
+  it('sums a single line correctly', () => {
+    const lines = [{ material_id: 'gold', quantity: 4.8 }]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(408, 5)
+  })
+
+  it('sums multiple lines correctly (the Hartmann solitaire)', () => {
+    const lines = [
+      { material_id: 'gold', quantity: 4.8 },
+      { material_id: 'diamond', quantity: 1 },
+      { material_id: 'labour', quantity: 2 },
+    ]
+    // 4.8 × 85 + 1 × 2000 + 2 × 120 = 408 + 2000 + 240 = 2648
+    expect(computeBomCost(lines, materials)).toBeCloseTo(2648, 5)
+  })
+
+  it('accepts string quantities (from form inputs)', () => {
+    const lines = [{ material_id: 'gold', quantity: '4.8' }]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(408, 5)
+  })
+
+  it('skips lines with unknown material_id', () => {
+    const lines = [
+      { material_id: 'gold', quantity: 2 },
+      { material_id: 'platinum', quantity: 5 }, // not in registry
+    ]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(170, 5)
+  })
+
+  it('skips lines with invalid quantity', () => {
+    const lines = [
+      { material_id: 'gold', quantity: 2 },
+      { material_id: 'diamond', quantity: '' },
+      { material_id: 'labour', quantity: 'junk' },
+    ]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(170, 5)
   })
 })
