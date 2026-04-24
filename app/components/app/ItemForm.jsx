@@ -17,6 +17,7 @@ import {
 } from '~/lib/validations/item'
 import { BomEditor } from '~/components/app/BomEditor'
 import { CustomerPicker } from '~/components/app/CustomerPicker'
+import { PhotoCropper } from '~/components/app/PhotoCropper'
 import { cn } from '~/lib/utils'
 
 /**
@@ -82,6 +83,11 @@ export function ItemForm({
   const [remove, setRemove] = useState([])
   const [activeIdx, setActiveIdx] = useState(0)
 
+  // Cropper queue: when the user picks files, we queue them up and show the
+  // cropper one at a time. Empty queue = cropper is closed. The head of the
+  // queue is the file currently being cropped.
+  const [cropQueue, setCropQueue] = useState([])
+
   const fileInputRef = useRef(null)
 
   // Reset photo state when the dialog reopens with a different item
@@ -90,6 +96,7 @@ export function ItemForm({
     setAdd([])
     setRemove([])
     setActiveIdx(0)
+    setCropQueue([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingPhotos.join('|')])
 
@@ -169,8 +176,34 @@ export function ItemForm({
     if (!files.length) return
     const slotsLeft = MAX_ITEM_PHOTOS - gallery.length
     const accepted = files.slice(0, slotsLeft)
-    const newPending = accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }))
-    setAdd((prev) => [...prev, ...newPending])
+    // Instead of adding directly, queue for cropping. The head of the queue
+    // is what the cropper is currently showing.
+    setCropQueue((prev) => [...prev, ...accepted])
+  }
+
+  /** Push a finished photo (cropped blob OR original file) into the pending list. */
+  function acceptPhoto(fileOrBlob, sourceFile) {
+    // If the input was a Blob (from the cropper), wrap it in a File so the
+    // upload code sees a consistent type. Keep a sensible filename.
+    const asFile =
+      fileOrBlob instanceof File
+        ? fileOrBlob
+        : new File(
+            [fileOrBlob],
+            sourceFile ? sourceFile.name.replace(/(\.[^.]+)?$/, '.cropped.jpg') : 'cropped.jpg',
+            { type: 'image/jpeg' }
+          )
+    setAdd((prev) => [...prev, { file: asFile, preview: URL.createObjectURL(asFile) }])
+    advanceQueue()
+  }
+
+  /** Drop the head of the queue without adding anything (user hit Cancel). */
+  function skipQueueHead() {
+    advanceQueue()
+  }
+
+  function advanceQueue() {
+    setCropQueue((prev) => prev.slice(1))
   }
 
   function removePhoto(item) {
@@ -185,235 +218,245 @@ export function ItemForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit((values) => {
-        // Sanitise BOM before handing it to the parent:
-        // - drop lines without material_id
-        // - drop lines with invalid/zero quantity
-        // - coerce quantity to a plain number
-        const cleanBom = bom
-          .filter((l) => l.material_id && Number(l.quantity) > 0)
-          .map((l) => ({
-            material_id: l.material_id,
-            quantity: Number(l.quantity),
-          }))
-        onSubmit(values, { keep, add: add.map((p) => p.file), remove }, cleanBom)
-      })}
-      className="space-y-4 px-6 py-4"
-    >
-      {/* Photo gallery — hero + thumbnail row */}
-      <div className="space-y-3">
-        <Label>
-          Photos{' '}
-          <span className="text-xs font-normal text-gray-400">
-            ({gallery.length} / {MAX_ITEM_PHOTOS})
-          </span>
-        </Label>
+    <>
+      {/* Crop dialog — shows the head of the queue, or nothing if queue empty. */}
+      <PhotoCropper
+        file={cropQueue[0] || null}
+        onComplete={(blob) => acceptPhoto(blob, cropQueue[0])}
+        onUseAsIs={(file) => acceptPhoto(file, file)}
+        onCancel={skipQueueHead}
+      />
 
-        {/* Hero */}
-        <div className="relative overflow-hidden rounded-xl bg-brand-50">
-          {hero ? (
-            <>
-              <img src={hero.url} alt="item" className="aspect-[4/3] w-full object-cover" />
-              <button
-                type="button"
-                onClick={() => removePhoto(hero)}
-                aria-label="Remove this photo"
-                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-brand-400"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-brand-200 text-brand-400 transition-colors hover:border-brand-400 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
-            >
-              <Camera className="h-8 w-8" aria-hidden />
-              <span className="text-sm font-medium">Add a photo</span>
-              <span className="text-xs text-gray-400">Up to {MAX_ITEM_PHOTOS} per item</span>
-            </button>
-          )}
-        </div>
+      <form
+        onSubmit={handleSubmit((values) => {
+          // Sanitise BOM before handing it to the parent:
+          // - drop lines without material_id
+          // - drop lines with invalid/zero quantity
+          // - coerce quantity to a plain number
+          const cleanBom = bom
+            .filter((l) => l.material_id && Number(l.quantity) > 0)
+            .map((l) => ({
+              material_id: l.material_id,
+              quantity: Number(l.quantity),
+            }))
+          onSubmit(values, { keep, add: add.map((p) => p.file), remove }, cleanBom)
+        })}
+        className="space-y-4 px-6 py-4"
+      >
+        {/* Photo gallery — hero + thumbnail row */}
+        <div className="space-y-3">
+          <Label>
+            Photos{' '}
+            <span className="text-xs font-normal text-gray-400">
+              ({gallery.length} / {MAX_ITEM_PHOTOS})
+            </span>
+          </Label>
 
-        {/* Thumbnail row */}
-        {(gallery.length > 0 || canAdd) && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {gallery.map((item, i) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setActiveIdx(i)}
-                aria-label={`View photo ${i + 1}`}
-                className={cn(
-                  'relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-brand-400',
-                  i === safeIdx
-                    ? 'border-brand-600'
-                    : 'border-transparent opacity-70 hover:opacity-100'
-                )}
-              >
-                <img src={item.url} alt="" className="h-full w-full object-cover" />
-                {item.kind === 'pending' && (
-                  <span className="absolute bottom-0 left-0 right-0 bg-brand-600/85 py-0.5 text-center text-[10px] font-medium uppercase tracking-wider text-white">
-                    new
-                  </span>
-                )}
-              </button>
-            ))}
-            {canAdd && (
+          {/* Hero */}
+          <div className="relative overflow-hidden rounded-xl bg-brand-50">
+            {hero ? (
+              <>
+                <img src={hero.url} alt="item" className="aspect-[4/3] w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removePhoto(hero)}
+                  aria-label="Remove this photo"
+                  className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                aria-label="Add another photo"
-                className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-brand-200 text-brand-400 transition-colors hover:border-brand-400 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-brand-200 text-brand-400 transition-colors hover:border-brand-400 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
               >
-                <Plus className="h-5 w-5" aria-hidden />
+                <Camera className="h-8 w-8" aria-hidden />
+                <span className="text-sm font-medium">Add a photo</span>
+                <span className="text-xs text-gray-400">Up to {MAX_ITEM_PHOTOS} per item</span>
               </button>
             )}
           </div>
-        )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={onPickFiles}
-        />
-      </div>
-
-      {/* Name */}
-      <div className="space-y-1.5">
-        <Label htmlFor="name">Item name *</Label>
-        <Input
-          id="name"
-          autoFocus
-          placeholder="e.g. Solitaire diamond ring"
-          {...register('name')}
-        />
-        {errors.name && (
-          <p role="alert" className="text-sm text-red-600">
-            {errors.name.message}
-          </p>
-        )}
-      </div>
-
-      {/* Category + status */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="category">Category</Label>
-          <SelectBase id="category" {...register('category')}>
-            <option value="">— Select —</option>
-            {ITEM_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c.charAt(0).toUpperCase() + c.slice(1)}
-              </option>
-            ))}
-          </SelectBase>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="status">Status</Label>
-          <SelectBase id="status" {...register('status')}>
-            {ITEM_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </option>
-            ))}
-          </SelectBase>
-        </div>
-      </div>
-
-      {/* Bill of materials */}
-      <BomEditor lines={bom} materials={materials} onChange={setBom} />
-
-      {/* Weight */}
-      <div className="space-y-1.5">
-        <Label htmlFor="weight_g">Total weight (g)</Label>
-        <Input
-          id="weight_g"
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder="0.00"
-          {...register('weight_g')}
-        />
-        {errors.weight_g && (
-          <p role="alert" className="text-sm text-red-600">
-            {errors.weight_g.message}
-          </p>
-        )}
-      </div>
-
-      {/* Price */}
-      <div className="space-y-1.5">
-        <Label htmlFor="price">Price</Label>
-        <Input
-          id="price"
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder="0.00"
-          {...wrappedPriceRegister}
-        />
-        {errors.price && (
-          <p role="alert" className="text-sm text-red-600">
-            {errors.price.message}
-          </p>
-        )}
-      </div>
-
-      {/* Customer link — searchable picker (scales to 700+ customers) */}
-      <div className="space-y-1.5">
-        <Label htmlFor="customer_id">Linked customer</Label>
-        <Controller
-          name="customer_id"
-          control={control}
-          render={({ field }) => (
-            <CustomerPicker
-              id="customer_id"
-              value={field.value}
-              onChange={field.onChange}
-              customers={customers}
-            />
+          {/* Thumbnail row */}
+          {(gallery.length > 0 || canAdd) && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {gallery.map((item, i) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveIdx(i)}
+                  aria-label={`View photo ${i + 1}`}
+                  className={cn(
+                    'relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-brand-400',
+                    i === safeIdx
+                      ? 'border-brand-600'
+                      : 'border-transparent opacity-70 hover:opacity-100'
+                  )}
+                >
+                  <img src={item.url} alt="" className="h-full w-full object-cover" />
+                  {item.kind === 'pending' && (
+                    <span className="absolute bottom-0 left-0 right-0 bg-brand-600/85 py-0.5 text-center text-[10px] font-medium uppercase tracking-wider text-white">
+                      new
+                    </span>
+                  )}
+                </button>
+              ))}
+              {canAdd && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Add another photo"
+                  className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-brand-200 text-brand-400 transition-colors hover:border-brand-400 hover:text-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  <Plus className="h-5 w-5" aria-hidden />
+                </button>
+              )}
+            </div>
           )}
-        />
-      </div>
 
-      {/* Description */}
-      <div className="space-y-1.5">
-        <Label htmlFor="description">Description / notes / stones</Label>
-        <Textarea
-          id="description"
-          rows={3}
-          placeholder="Stones, provenance, any details…"
-          {...register('description')}
-        />
-      </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={onPickFiles}
+          />
+        </div>
 
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
+        {/* Name */}
+        <div className="space-y-1.5">
+          <Label htmlFor="name">Item name *</Label>
+          <Input
+            id="name"
+            autoFocus
+            placeholder="e.g. Solitaire diamond ring"
+            {...register('name')}
+          />
+          {errors.name && (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.name.message}
+            </p>
+          )}
+        </div>
 
-      {/* Actions */}
-      <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
-        {isEdit && onDelete ? (
-          <Button type="button" variant="destructive" onClick={onDelete} disabled={submitting}>
-            Delete
-          </Button>
-        ) : (
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
-            Cancel
-          </Button>
+        {/* Category + status */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="category">Category</Label>
+            <SelectBase id="category" {...register('category')}>
+              <option value="">— Select —</option>
+              {ITEM_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                </option>
+              ))}
+            </SelectBase>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="status">Status</Label>
+            <SelectBase id="status" {...register('status')}>
+              {ITEM_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABELS[s]}
+                </option>
+              ))}
+            </SelectBase>
+          </div>
+        </div>
+
+        {/* Bill of materials */}
+        <BomEditor lines={bom} materials={materials} onChange={setBom} />
+
+        {/* Weight */}
+        <div className="space-y-1.5">
+          <Label htmlFor="weight_g">Total weight (g)</Label>
+          <Input
+            id="weight_g"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            {...register('weight_g')}
+          />
+          {errors.weight_g && (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.weight_g.message}
+            </p>
+          )}
+        </div>
+
+        {/* Price */}
+        <div className="space-y-1.5">
+          <Label htmlFor="price">Price</Label>
+          <Input
+            id="price"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            {...wrappedPriceRegister}
+          />
+          {errors.price && (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.price.message}
+            </p>
+          )}
+        </div>
+
+        {/* Customer link — searchable picker (scales to 700+ customers) */}
+        <div className="space-y-1.5">
+          <Label htmlFor="customer_id">Linked customer</Label>
+          <Controller
+            name="customer_id"
+            control={control}
+            render={({ field }) => (
+              <CustomerPicker
+                id="customer_id"
+                value={field.value}
+                onChange={field.onChange}
+                customers={customers}
+              />
+            )}
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-1.5">
+          <Label htmlFor="description">Description / notes / stones</Label>
+          <Textarea
+            id="description"
+            rows={3}
+            placeholder="Stones, provenance, any details…"
+            {...register('description')}
+          />
+        </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-red-600">
+            {error}
+          </p>
         )}
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add item'}
-        </Button>
-      </div>
-    </form>
+
+        {/* Actions */}
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+          {isEdit && onDelete ? (
+            <Button type="button" variant="destructive" onClick={onDelete} disabled={submitting}>
+              Delete
+            </Button>
+          ) : (
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" disabled={submitting}>
+            {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add item'}
+          </Button>
+        </div>
+      </form>
+    </>
   )
 }
 
