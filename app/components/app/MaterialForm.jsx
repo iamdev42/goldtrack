@@ -46,6 +46,7 @@ export function MaterialForm({
           id="name"
           autoFocus
           placeholder="e.g. Gold 18K, Diamond, Labour"
+          invalid={!!errors.name}
           {...register('name')}
         />
         {errors.name && (
@@ -58,7 +59,12 @@ export function MaterialForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="unit">Unit</Label>
-          <Input id="unit" placeholder="e.g. gram, piece, hour" {...register('unit')} />
+          <Input
+            id="unit"
+            placeholder="e.g. gram, piece, hour"
+            invalid={!!errors.unit}
+            {...register('unit')}
+          />
           {errors.unit && (
             <p role="alert" className="text-sm text-red-600">
               {errors.unit.message}
@@ -70,10 +76,8 @@ export function MaterialForm({
           <Input
             id="cost"
             type="number"
-            step="0.01"
-            min="0"
-            inputMode="decimal"
             placeholder="0.00"
+            invalid={!!errors.cost}
             {...register('cost')}
           />
           {errors.cost && (

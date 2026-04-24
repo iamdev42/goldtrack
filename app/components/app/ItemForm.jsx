@@ -333,6 +333,7 @@ export function ItemForm({
             id="name"
             autoFocus
             placeholder="e.g. Solitaire diamond ring"
+            invalid={!!errors.name}
             {...register('name')}
           />
           {errors.name && (
@@ -376,9 +377,8 @@ export function ItemForm({
           <Input
             id="weight_g"
             type="number"
-            step="0.01"
-            min="0"
             placeholder="0.00"
+            invalid={!!errors.weight_g}
             {...register('weight_g')}
           />
           {errors.weight_g && (
@@ -394,9 +394,8 @@ export function ItemForm({
           <Input
             id="price"
             type="number"
-            step="0.01"
-            min="0"
             placeholder="0.00"
+            invalid={!!errors.price}
             {...wrappedPriceRegister}
           />
           {errors.price && (

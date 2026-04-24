@@ -125,6 +125,11 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
   // so the user's eye knows which rows are filled in vs pending.
   const hasQty = Number.isFinite(qty) && qty > 0
 
+  // Red border only when the user has typed something that doesn't parse —
+  // not when the field is blank (that's a legitimate in-progress state).
+  const rawQty = String(line.quantity ?? '').trim()
+  const hasInvalidQty = rawQty !== '' && (!Number.isFinite(qty) || qty <= 0)
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-3">
       <div className="flex items-end gap-2">
@@ -150,12 +155,10 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
           <div className="relative">
             <Input
               type="number"
-              step="0.01"
-              min="0"
-              inputMode="decimal"
               placeholder="0"
               value={line.quantity}
               onChange={(e) => onQuantityChange(e.target.value)}
+              invalid={hasInvalidQty}
               className={`h-10 text-sm ${unit ? 'pr-10' : ''}`}
             />
             {unit && (
