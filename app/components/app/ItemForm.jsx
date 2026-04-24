@@ -64,7 +64,6 @@ export function ItemForm({
     register,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(itemSchema),
@@ -109,16 +108,43 @@ export function ItemForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(defaultBom)])
 
-  // Live cost preview + auto-fill price when it's blank.
-  // We intentionally DON'T overwrite a price the user has typed themselves.
+  // Live cost preview + auto-fill price.
+  //
+  // The rules:
+  //   - On first render, if the form opens with an empty price, we'll
+  //     auto-fill it from the BOM total.
+  //   - Whenever the BOM total changes, we keep the price in sync — BUT
+  //     only as long as the user hasn't manually edited the price.
+  //   - Once the user types a value into the price field themselves, we
+  //     stop auto-updating. That respects psychological pricing like
+  //     "CHF 4950" that should NOT snap back to cost when BOM changes.
+  //   - If the price is cleared back to empty, we resume auto-updating.
   const bomCost = computeBomCost(bom, materials)
-  const watchedPrice = watch('price')
+
+  // True when price was last set by auto-fill (or never set).
+  // Starts true only if the form opens with no existing price.
+  const priceIsAutoRef = useRef(!defaultValues.price)
+
+  // Apply the auto-fill whenever the BOM total changes.
   useEffect(() => {
-    if (!watchedPrice && bomCost > 0) {
+    if (priceIsAutoRef.current && bomCost > 0) {
       setValue('price', bomCost.toFixed(2), { shouldDirty: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bomCost])
+
+  // User-typed edits flip the auto-fill flag off; clearing the field flips it back on.
+  // We do NOT use `onInput`/`onChange` directly because react-hook-form's setValue()
+  // does not fire DOM events, but leaving the cleanup in `register()` means we need
+  // to wrap it to add our side effect.
+  const priceRegister = register('price')
+  const wrappedPriceRegister = {
+    ...priceRegister,
+    onChange: (e) => {
+      priceIsAutoRef.current = e.target.value === ''
+      return priceRegister.onChange(e)
+    },
+  }
 
   // Photos currently shown in the gallery, in order:
   // existing kept ones first, then new pending ones.
@@ -322,7 +348,7 @@ export function ItemForm({
           step="0.01"
           min="0"
           placeholder="0.00"
-          {...register('price')}
+          {...wrappedPriceRegister}
         />
         {errors.price && (
           <p role="alert" className="text-sm text-red-600">
