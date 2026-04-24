@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Package, Plus, Search, X } from 'lucide-reac
 import { useTenant } from '~/hooks/useTenant'
 import { useCustomers } from '~/lib/queries/customers'
 import { useMaterials } from '~/lib/queries/materials'
+import { useDefaultMaterialIds } from '~/lib/queries/tenant-defaults'
 import {
   useItems,
   useCreateItem,
@@ -45,6 +46,7 @@ export default function Inventory() {
   const { data: items = [], isLoading, error } = useItems(tenantId)
   const { data: customers = [] } = useCustomers(tenantId)
   const { data: materials = [] } = useMaterials(tenantId)
+  const { data: defaultMaterialIds = [] } = useDefaultMaterialIds(tenantId)
 
   const createMutation = useCreateItem(tenantId)
   const updateMutation = useUpdateItem(tenantId)
@@ -320,12 +322,17 @@ export default function Inventory() {
             }
             existingPhotos={editing?.photos || []}
             defaultBom={
-              editing?.bom
+              editing?.bom && editing.bom.length > 0
                 ? editing.bom.map((line) => ({
                     material_id: line.material_id,
                     quantity: String(line.quantity),
                   }))
-                : []
+                : editing
+                  ? // Existing item with an empty BOM: respect the user's choice,
+                    // don't re-inject defaults (would trap them in a delete/reappear loop)
+                    []
+                  : // Brand-new item: pre-fill one blank-qty line per default material
+                    defaultMaterialIds.map((id) => ({ material_id: id, quantity: '' }))
             }
             customers={customers}
             materials={materials}

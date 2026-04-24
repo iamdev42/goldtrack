@@ -7,6 +7,7 @@ import {
   useUpdateMaterial,
   useDeleteMaterial,
 } from '~/lib/queries/materials'
+import { useDefaultMaterialIds, useSetMaterialDefault } from '~/lib/queries/tenant-defaults'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -29,9 +30,11 @@ export default function Materials() {
   const [formError, setFormError] = useState(null)
 
   const { data: materials = [], isLoading, error } = useMaterials(tenantId)
+  const { data: defaultIds = [] } = useDefaultMaterialIds(tenantId)
   const createMutation = useCreateMaterial(tenantId)
   const updateMutation = useUpdateMaterial(tenantId)
   const deleteMutation = useDeleteMaterial(tenantId)
+  const setDefaultMutation = useSetMaterialDefault(tenantId)
 
   const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
@@ -122,13 +125,28 @@ export default function Materials() {
 
       {/* List */}
       {materials.length > 0 && (
-        <ul className="space-y-2">
-          {materials.map((m) => (
-            <li key={m.id}>
-              <MaterialCard material={m} onClick={() => openEdit(m)} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Header row: aligns "Default" label with the checkbox column */}
+          <div className="flex items-center gap-2 px-2 text-xs uppercase tracking-wide text-gray-400">
+            <div className="flex-1" />
+            <div className="w-12 text-center">Default</div>
+          </div>
+
+          <ul className="space-y-2">
+            {materials.map((m) => (
+              <li key={m.id}>
+                <MaterialCard
+                  material={m}
+                  onClick={() => openEdit(m)}
+                  isDefault={defaultIds.includes(m.id)}
+                  onToggleDefault={(next) =>
+                    setDefaultMutation.mutate({ materialId: m.id, isDefault: next })
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {materials.length > 0 && (
