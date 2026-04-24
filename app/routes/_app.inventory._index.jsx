@@ -69,8 +69,17 @@ export default function Inventory() {
     if (!q) return byStatus
     return byStatus.filter((i) => {
       // Pull every material name from the item's BOM into the searchable text
+      // Pull every material name + every ad-hoc description into the haystack
       const bomNames = (i.bom || []).map((line) => line.material?.name).filter(Boolean)
-      const haystack = [i.name, i.description, i.category, ...bomNames, i.customer?.name]
+      const adhocDescriptions = (i.adhoc || []).map((line) => line.description).filter(Boolean)
+      const haystack = [
+        i.name,
+        i.description,
+        i.category,
+        ...bomNames,
+        ...adhocDescriptions,
+        i.customer?.name,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -106,17 +115,18 @@ export default function Inventory() {
    * Handle save. The form gives us:
    *   values        — text fields
    *   photoChanges  — { keep: string[], add: File[], remove: string[] }
-   *   bom           — array of { material_id, quantity }
+   *   bomBundle     — { materialLines: [...], adhocLines: [...] }
    *
    * Order of operations:
    *   1. Insert/update item row
    *   2. Upload any new photos, patch the photos array
-   *   3. Save the BOM (atomic via save_item_bom RPC)
+   *   3. Save the BOM (atomic via save_item_bom RPC — covers BOTH line kinds)
    *   4. Clean up removed photos from Storage
    */
-  async function handleSubmit(values, photoChanges, bom) {
+  async function handleSubmit(values, photoChanges, bomBundle) {
     setFormError(null)
     const { keep, add, remove } = photoChanges
+    const { materialLines, adhocLines } = bomBundle
 
     try {
       let savedId = editing?.id
@@ -153,11 +163,11 @@ export default function Inventory() {
         })
       }
 
-      // Save the BOM via the atomic RPC. Always fires: an empty array
-      // correctly wipes out any existing lines.
+      // Save the BOM via the atomic RPC. Always fires: empty arrays correctly
+      // wipe out any existing lines on either side.
       if (savedId) {
         try {
-          await saveItemBom(savedId, bom)
+          await saveItemBom(savedId, materialLines, adhocLines)
         } catch (bomErr) {
           console.error('[Inventory] BOM save failed:', bomErr.message)
           setFormError(`Item saved but the bill of materials could not be saved: ${bomErr.message}`)
@@ -321,19 +331,28 @@ export default function Inventory() {
                 : undefined
             }
             existingPhotos={editing?.photos || []}
-            defaultBom={
-              editing?.bom && editing.bom.length > 0
-                ? editing.bom.map((line) => ({
-                    material_id: line.material_id,
-                    quantity: String(line.quantity),
-                  }))
-                : editing
-                  ? // Existing item with an empty BOM: respect the user's choice,
-                    // don't re-inject defaults (would trap them in a delete/reappear loop)
-                    []
-                  : // Brand-new item: pre-fill one blank-qty line per default material
-                    defaultMaterialIds.map((id) => ({ material_id: id, quantity: '' }))
-            }
+            defaultBom={(() => {
+              if (!editing) {
+                // Brand-new item: pre-fill one blank-qty line per default material
+                return defaultMaterialIds.map((id) => ({
+                  kind: 'material',
+                  material_id: id,
+                  quantity: '',
+                }))
+              }
+              // Existing item: merge the two loaded arrays into one tagged list.
+              const materialLines = (editing.bom || []).map((line) => ({
+                kind: 'material',
+                material_id: line.material_id,
+                quantity: String(line.quantity),
+              }))
+              const adhocLines = (editing.adhoc || []).map((line) => ({
+                kind: 'adhoc',
+                description: line.description,
+                cost: String(line.cost),
+              }))
+              return [...materialLines, ...adhocLines]
+            })()}
             customers={customers}
             materials={materials}
             onSubmit={handleSubmit}

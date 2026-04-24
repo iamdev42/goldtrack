@@ -35,7 +35,7 @@ import { cn } from '~/lib/utils'
  * @param {{
  *   defaultValues?: import('~/lib/validations/item').ItemInput,
  *   existingPhotos?: string[],
- *   defaultBom?: Array<{ material_id: string, quantity: string | number }>,
+ *   defaultBom?: Array<object>, // material or adhoc lines; see BomEditor
  *   customers: Array<{ id: string, name: string }>,
  *   materials: Array<{ id: string, name: string, unit: string | null, cost: number }>,
  *   onSubmit: (
@@ -245,20 +245,35 @@ export function ItemForm({
 
       <form
         onSubmit={handleSubmit((values) => {
-          // Validate the BOM up front. Any line with a missing material,
-          // empty quantity, or unparseable quantity blocks the submit.
+          // Validate the BOM up front. Any invalid/incomplete line blocks submit.
           const lineErrors = validateBomLines(bom)
           const hasErrors = lineErrors.some((e) => e !== null)
           if (hasErrors) {
             setBomErrors(lineErrors)
             return
           }
-          // Everything passes: shape the BOM for the RPC (already clean).
-          const cleanBom = bom.map((l) => ({
-            material_id: l.material_id,
-            quantity: Number(l.quantity),
-          }))
-          onSubmit(values, { keep, add: add.map((p) => p.file), remove }, cleanBom)
+          // Split lines into the two shapes the RPC expects. Lines without an
+          // explicit `kind` are treated as material (backwards compat).
+          const materialLines = []
+          const adhocLines = []
+          bom.forEach((l) => {
+            if (l.kind === 'adhoc') {
+              adhocLines.push({
+                description: String(l.description).trim(),
+                cost: Number(l.cost),
+              })
+            } else {
+              materialLines.push({
+                material_id: l.material_id,
+                quantity: Number(l.quantity),
+              })
+            }
+          })
+          onSubmit(
+            values,
+            { keep, add: add.map((p) => p.file), remove },
+            { materialLines, adhocLines }
+          )
         })}
         className="space-y-4 px-6 py-4"
       >

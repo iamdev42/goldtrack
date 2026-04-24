@@ -27,7 +27,7 @@ export function useItems(tenantId) {
       const { data, error } = await supabase
         .from('items')
         .select(
-          '*, customer:customers(name), bom:item_materials(id, material_id, quantity, material:materials(id, name, unit, cost))'
+          '*, customer:customers(name), bom:item_materials(id, material_id, quantity, material:materials(id, name, unit, cost)), adhoc:item_ad_hoc_costs(id, description, cost)'
         )
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
@@ -40,17 +40,21 @@ export function useItems(tenantId) {
 // ── BOM save ──────────────────────────────────────────────────
 
 /**
- * Atomically replace all BOM lines for an item. Wraps the server-side RPC
- * `save_item_bom` created in migration 009. Either every line is saved or
- * none are.
+ * Atomically replace all BOM lines for an item, across both the registered
+ * material lines and the ad-hoc cost lines. Wraps the server-side RPC
+ * `save_item_bom` created in migration 011 (extending the original in 009).
+ *
+ * Either every line in both arrays is saved, or none of them are.
  *
  * @param {string} itemId
- * @param {Array<{ material_id: string, quantity: number }>} lines
+ * @param {Array<{ material_id: string, quantity: number }>} materialLines
+ * @param {Array<{ description: string, cost: number }>} adhocLines
  */
-export async function saveItemBom(itemId, lines) {
+export async function saveItemBom(itemId, materialLines, adhocLines) {
   const { error } = await supabase.rpc('save_item_bom', {
     p_item_id: itemId,
-    p_lines: lines,
+    p_material_lines: materialLines,
+    p_adhoc_lines: adhocLines,
   })
   if (error) throw error
 }

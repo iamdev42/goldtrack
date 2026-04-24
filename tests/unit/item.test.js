@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  adhocLineSchema,
   bomLineSchema,
   computeBomCost,
   emptyItem,
@@ -236,5 +237,114 @@ describe('validateBomLines', () => {
   it('survives non-array input defensively', () => {
     expect(validateBomLines(null)).toEqual([])
     expect(validateBomLines(undefined)).toEqual([])
+  })
+})
+
+describe('adhocLineSchema', () => {
+  it('accepts a valid ad-hoc line', () => {
+    const result = adhocLineSchema.safeParse({ description: '1.2ct diamond', cost: '450' })
+    expect(result.success).toBe(true)
+    expect(result.data.cost).toBe(450)
+  })
+
+  it('trims the description', () => {
+    const result = adhocLineSchema.safeParse({
+      description: '  0.3ct diamond  ',
+      cost: 150,
+    })
+    expect(result.success).toBe(true)
+    expect(result.data.description).toBe('0.3ct diamond')
+  })
+
+  it('rejects empty description', () => {
+    const result = adhocLineSchema.safeParse({ description: '', cost: 100 })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects description longer than 100 chars', () => {
+    const result = adhocLineSchema.safeParse({
+      description: 'a'.repeat(101),
+      cost: 100,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects zero or negative cost', () => {
+    expect(adhocLineSchema.safeParse({ description: 'x', cost: 0 }).success).toBe(false)
+    expect(adhocLineSchema.safeParse({ description: 'x', cost: -5 }).success).toBe(false)
+  })
+
+  it('rejects non-numeric cost', () => {
+    expect(adhocLineSchema.safeParse({ description: 'x', cost: 'free' }).success).toBe(false)
+  })
+})
+
+describe('computeBomCost — mixed material + adhoc lines', () => {
+  const materials = [{ id: 'gold', name: 'Gold', unit: 'g', cost: 85 }]
+
+  it('sums a mix of material and adhoc lines', () => {
+    const lines = [
+      { kind: 'material', material_id: 'gold', quantity: 2 }, // 170
+      { kind: 'adhoc', description: '1.2ct diamond', cost: 450 }, // 450
+      { kind: 'adhoc', description: 'stone setting', cost: 120 }, // 120
+    ]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(740, 5)
+  })
+
+  it('treats kind-less lines as material (backwards compatible)', () => {
+    const lines = [{ material_id: 'gold', quantity: 2 }]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(170, 5)
+  })
+
+  it('skips adhoc lines with invalid cost', () => {
+    const lines = [
+      { kind: 'adhoc', description: 'x', cost: '' },
+      { kind: 'adhoc', description: 'y', cost: 'junk' },
+      { kind: 'adhoc', description: 'z', cost: 50 },
+    ]
+    expect(computeBomCost(lines, materials)).toBeCloseTo(50, 5)
+  })
+})
+
+describe('validateBomLines — adhoc lines', () => {
+  it('accepts a valid ad-hoc line', () => {
+    const errors = validateBomLines([{ kind: 'adhoc', description: 'stone', cost: 100 }])
+    expect(errors[0]).toBeNull()
+  })
+
+  it('flags missing description', () => {
+    const errors = validateBomLines([{ kind: 'adhoc', description: '', cost: 100 }])
+    expect(errors[0]).toEqual({ field: 'description', message: 'Enter a description' })
+  })
+
+  it('flags whitespace-only description', () => {
+    const errors = validateBomLines([{ kind: 'adhoc', description: '   ', cost: 100 }])
+    expect(errors[0]?.field).toBe('description')
+  })
+
+  it('flags missing cost', () => {
+    const errors = validateBomLines([{ kind: 'adhoc', description: 'stone', cost: '' }])
+    expect(errors[0]).toEqual({ field: 'cost', message: 'Enter a cost' })
+  })
+
+  it('flags unparseable cost', () => {
+    const errors = validateBomLines([{ kind: 'adhoc', description: 'x', cost: 'free' }])
+    expect(errors[0]?.field).toBe('cost')
+  })
+
+  it('flags zero cost', () => {
+    const errors = validateBomLines([{ kind: 'adhoc', description: 'x', cost: 0 }])
+    expect(errors[0]?.field).toBe('cost')
+  })
+
+  it('handles a mix of material + adhoc errors correctly', () => {
+    const errors = validateBomLines([
+      { kind: 'material', material_id: 'abc', quantity: 5 },
+      { kind: 'adhoc', description: '', cost: 0 },
+      { kind: 'adhoc', description: 'good', cost: 10 },
+    ])
+    expect(errors[0]).toBeNull()
+    expect(errors[1]?.field).toBe('description')
+    expect(errors[2]).toBeNull()
   })
 })

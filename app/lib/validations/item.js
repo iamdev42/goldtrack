@@ -64,6 +64,18 @@ export const bomLineSchema = z.object({
 })
 
 /**
+ * Ad-hoc BOM line validation — for "Other / Stone / 3rd-party" entries
+ * that don't reference the materials registry. Free-text description +
+ * a direct cost. No quantity (subtotal = cost).
+ */
+export const adhocLineSchema = z.object({
+  description: z.string().trim().min(1, 'Description is required').max(100),
+  cost: z.coerce
+    .number({ invalid_type_error: 'Cost must be a number' })
+    .positive('Cost must be greater than zero'),
+})
+
+/**
  * Validates a whole BOM before it's sent to the RPC. Rejects empty/invalid
  * lines so they never reach the DB.
  */
@@ -125,15 +137,30 @@ export function itemToDbPayload(input) {
 }
 
 /**
- * Compute the total material cost of a BOM given the current registry prices.
- * Used for live preview in the form, not stored in the DB.
+ * Compute the total cost across all BOM lines — both registered materials
+ * and ad-hoc "Other" entries. Used for live preview in the form.
  *
- * @param {Array<{ material_id: string, quantity: number | string }>} lines
+ * Line shape discriminator: `kind === 'adhoc'` → use line.cost directly
+ * (no quantity). Otherwise it's a registered-material line and we look up
+ * the cost from the materials registry.
+ *
+ * Lines with missing data are skipped silently so the preview stays sensible
+ * while the user is still typing.
+ *
+ * @param {Array<object>} lines Each line is either:
+ *   - { kind: 'material', material_id: string, quantity: number | string }
+ *   - { kind: 'adhoc', description: string, cost: number | string }
+ *   For backwards-compat, lines without a `kind` field are treated as 'material'.
  * @param {Array<{ id: string, cost: number | string }>} materials
  */
 export function computeBomCost(lines, materials) {
   if (!Array.isArray(lines)) return 0
   return lines.reduce((sum, line) => {
+    if (line.kind === 'adhoc') {
+      const cost = Number(line.cost)
+      return Number.isFinite(cost) && cost > 0 ? sum + cost : sum
+    }
+    // Default (no kind or kind === 'material')
     const mat = materials.find((m) => m.id === line.material_id)
     if (!mat) return sum
     const qty = Number(line.quantity)
@@ -150,19 +177,40 @@ export function computeBomCost(lines, materials) {
  *   - `null` for valid lines
  *   - `{ field, message }` for lines that can't be submitted
  *
- * Rules:
- *   1. Missing material_id → error on 'material_id'
- *   2. Empty quantity OR quantity that doesn't parse as a positive number
- *      → error on 'quantity'
+ * Rules by line kind:
+ *
+ *   Material lines:
+ *     1. Missing material_id → error on 'material_id'
+ *     2. Empty or invalid quantity → error on 'quantity'
+ *
+ *   Ad-hoc lines:
+ *     3. Missing description → error on 'description'
+ *     4. Empty or invalid cost → error on 'cost'
  *
  * Pure function so the tests cover every edge case without mounting a form.
  *
- * @param {Array<{ material_id: string, quantity: number | string }>} lines
- * @returns {Array<null | { field: 'material_id' | 'quantity', message: string }>}
+ * @param {Array<object>} lines
+ * @returns {Array<null | { field: string, message: string }>}
  */
 export function validateBomLines(lines) {
   if (!Array.isArray(lines)) return []
   return lines.map((line) => {
+    if (line.kind === 'adhoc') {
+      const desc = String(line.description ?? '').trim()
+      if (desc === '') {
+        return { field: 'description', message: 'Enter a description' }
+      }
+      const rawCost = String(line.cost ?? '').trim()
+      if (rawCost === '') {
+        return { field: 'cost', message: 'Enter a cost' }
+      }
+      const cost = Number(rawCost)
+      if (!Number.isFinite(cost) || cost <= 0) {
+        return { field: 'cost', message: 'Cost must be a number greater than 0' }
+      }
+      return null
+    }
+    // Default (no kind or kind === 'material') — registered material line
     if (!line.material_id) {
       return { field: 'material_id', message: 'Pick a cost entry for this line' }
     }
