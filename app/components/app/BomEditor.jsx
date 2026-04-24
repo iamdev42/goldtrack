@@ -130,7 +130,7 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
       <div className="flex items-end gap-2">
         {/* Material dropdown — grows to fill width */}
         <div className="min-w-0 flex-1 space-y-1">
-          <label className="text-xs text-gray-500">Material</label>
+          <label className="text-xs text-gray-500">Cost</label>
           <select
             value={line.material_id}
             onChange={(e) => onMaterialChange(e.target.value)}
