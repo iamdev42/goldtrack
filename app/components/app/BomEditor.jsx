@@ -16,10 +16,11 @@ import { formatCurrency } from '~/lib/utils'
  * @param {{
  *   lines: Array<{ material_id: string, quantity: string | number }>,
  *   materials: Array<{ id: string, name: string, unit: string | null, cost: number }>,
+ *   errors?: Array<null | { field: 'material_id' | 'quantity', message: string }>,
  *   onChange: (lines: Array<{ material_id: string, quantity: string | number }>) => void,
  * }} props
  */
-export function BomEditor({ lines, materials, onChange }) {
+export function BomEditor({ lines, materials, errors = [], onChange }) {
   // If no materials are registered, the whole BOM editor is useless.
   // Render an explanatory empty state with a link to the Materials tab.
   if (materials.length === 0) {
@@ -75,6 +76,7 @@ export function BomEditor({ lines, materials, onChange }) {
           key={i}
           line={line}
           materials={materials}
+          error={errors[i] || null}
           onMaterialChange={(id) => updateLine(i, 'material_id', id)}
           onQuantityChange={(q) => updateLine(i, 'quantity', q)}
           onRemove={() => removeLine(i)}
@@ -112,7 +114,7 @@ export function BomEditor({ lines, materials, onChange }) {
  * narrow mobile screens without cramming five elements on one line. On wider
  * screens it still reads cleanly — no breakpoint juggling needed.
  */
-function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRemove }) {
+function BomLineRow({ line, materials, error, onMaterialChange, onQuantityChange, onRemove }) {
   const material = materials.find((m) => m.id === line.material_id)
   const unit = material?.unit || ''
 
@@ -130,6 +132,10 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
   const rawQty = String(line.quantity ?? '').trim()
   const hasInvalidQty = rawQty !== '' && (!Number.isFinite(qty) || qty <= 0)
 
+  // Submit-time errors come in via `error` prop — promote them to the right field.
+  const qtyHasSubmitError = error?.field === 'quantity'
+  const materialHasSubmitError = error?.field === 'material_id'
+
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-3">
       <div className="flex items-end gap-2">
@@ -139,7 +145,9 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
           <select
             value={line.material_id}
             onChange={(e) => onMaterialChange(e.target.value)}
-            className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            className={`flex h-10 w-full rounded-lg border bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+              materialHasSubmitError ? 'border-red-400' : 'border-gray-200'
+            }`}
           >
             {materials.map((m) => (
               <option key={m.id} value={m.id}>
@@ -158,7 +166,7 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
               placeholder="0"
               value={line.quantity}
               onChange={(e) => onQuantityChange(e.target.value)}
-              invalid={hasInvalidQty}
+              invalid={hasInvalidQty || qtyHasSubmitError}
               className={`h-10 text-sm ${unit ? 'pr-10' : ''}`}
             />
             {unit && (
@@ -192,6 +200,13 @@ function BomLineRow({ line, materials, onMaterialChange, onQuantityChange, onRem
           </div>
         </div>
       </div>
+
+      {/* Inline error message for this line (shown only after a failed submit) */}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-red-600">
+          {error.message}
+        </p>
+      )}
     </div>
   )
 }

@@ -14,6 +14,7 @@ import {
   ITEM_STATUSES,
   STATUS_LABELS,
   computeBomCost,
+  validateBomLines,
 } from '~/lib/validations/item'
 import { BomEditor } from '~/components/app/BomEditor'
 import { CustomerPicker } from '~/components/app/CustomerPicker'
@@ -111,11 +112,26 @@ export function ItemForm({
   // of complex rows; RHF fieldArray adds complexity we don't need here.
   const [bom, setBom] = useState(defaultBom)
 
-  // Reset BOM when the dialog reopens with a different item
+  // Per-line BOM validation errors. `null` or an array where each slot matches
+  // a line's index. Empty array = no errors. We surface these two ways: as
+  // a red banner at the top of the form, and as red borders + inline text on
+  // the offending BOM rows.
+  // Errors only populate when the user tries to submit — we don't shout at
+  // them while they're in the middle of typing.
+  const [bomErrors, setBomErrors] = useState([])
+
+  // Reset BOM (and any lingering error state) when the dialog reopens
   useEffect(() => {
     setBom(defaultBom)
+    setBomErrors([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(defaultBom)])
+
+  /** Wrap setBom so any edit clears BOM errors — fresh slate after user fixes. */
+  function updateBom(next) {
+    setBom(next)
+    if (bomErrors.length > 0) setBomErrors([])
+  }
 
   // Live cost preview + auto-fill price.
   //
@@ -229,20 +245,34 @@ export function ItemForm({
 
       <form
         onSubmit={handleSubmit((values) => {
-          // Sanitise BOM before handing it to the parent:
-          // - drop lines without material_id
-          // - drop lines with invalid/zero quantity
-          // - coerce quantity to a plain number
-          const cleanBom = bom
-            .filter((l) => l.material_id && Number(l.quantity) > 0)
-            .map((l) => ({
-              material_id: l.material_id,
-              quantity: Number(l.quantity),
-            }))
+          // Validate the BOM up front. Any line with a missing material,
+          // empty quantity, or unparseable quantity blocks the submit.
+          const lineErrors = validateBomLines(bom)
+          const hasErrors = lineErrors.some((e) => e !== null)
+          if (hasErrors) {
+            setBomErrors(lineErrors)
+            return
+          }
+          // Everything passes: shape the BOM for the RPC (already clean).
+          const cleanBom = bom.map((l) => ({
+            material_id: l.material_id,
+            quantity: Number(l.quantity),
+          }))
           onSubmit(values, { keep, add: add.map((p) => p.file), remove }, cleanBom)
         })}
         className="space-y-4 px-6 py-4"
       >
+        {/* BOM validation banner — shows only after the user tried to submit
+            with invalid BOM lines. Clears as soon as they edit the BOM. */}
+        {bomErrors.some((e) => e !== null) && (
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            Please fix the bill of materials before saving.
+          </div>
+        )}
+
         {/* Photo gallery — hero + thumbnail row */}
         <div className="space-y-3">
           <Label>
@@ -369,7 +399,7 @@ export function ItemForm({
         </div>
 
         {/* Bill of materials */}
-        <BomEditor lines={bom} materials={materials} onChange={setBom} />
+        <BomEditor lines={bom} materials={materials} errors={bomErrors} onChange={updateBom} />
 
         {/* Weight */}
         <div className="space-y-1.5">

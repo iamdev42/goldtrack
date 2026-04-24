@@ -5,6 +5,7 @@ import {
   emptyItem,
   itemSchema,
   itemToDbPayload,
+  validateBomLines,
 } from '~/lib/validations/item'
 
 describe('itemSchema', () => {
@@ -174,5 +175,66 @@ describe('computeBomCost', () => {
       { material_id: 'labour', quantity: 'junk' },
     ]
     expect(computeBomCost(lines, materials)).toBeCloseTo(170, 5)
+  })
+})
+
+describe('validateBomLines', () => {
+  const gold = '550e8400-e29b-41d4-a716-446655440000'
+
+  it('returns an empty array when given no lines', () => {
+    expect(validateBomLines([])).toEqual([])
+  })
+
+  it('accepts a fully-valid line', () => {
+    const errors = validateBomLines([{ material_id: gold, quantity: 4.8 }])
+    expect(errors).toEqual([null])
+  })
+
+  it('flags a missing material_id', () => {
+    const errors = validateBomLines([{ material_id: '', quantity: 1 }])
+    expect(errors[0]).toEqual({ field: 'material_id', message: expect.any(String) })
+  })
+
+  it('flags an empty quantity (string)', () => {
+    const errors = validateBomLines([{ material_id: gold, quantity: '' }])
+    expect(errors[0]).toEqual({ field: 'quantity', message: 'Enter a quantity' })
+  })
+
+  it('flags an unparseable quantity like "30s"', () => {
+    const errors = validateBomLines([{ material_id: gold, quantity: '30s' }])
+    expect(errors[0]).toEqual({
+      field: 'quantity',
+      message: 'Quantity must be a number greater than 0',
+    })
+  })
+
+  it('flags zero quantity', () => {
+    const errors = validateBomLines([{ material_id: gold, quantity: 0 }])
+    expect(errors[0]?.field).toBe('quantity')
+  })
+
+  it('flags negative quantity', () => {
+    const errors = validateBomLines([{ material_id: gold, quantity: -1 }])
+    expect(errors[0]?.field).toBe('quantity')
+  })
+
+  it('accepts numeric string quantities from form inputs', () => {
+    expect(validateBomLines([{ material_id: gold, quantity: '4.8' }])[0]).toBeNull()
+  })
+
+  it('returns an error per line (maintains indexing)', () => {
+    const errors = validateBomLines([
+      { material_id: gold, quantity: 1 },
+      { material_id: gold, quantity: 'xyz' },
+      { material_id: gold, quantity: 3 },
+    ])
+    expect(errors[0]).toBeNull()
+    expect(errors[1]).not.toBeNull()
+    expect(errors[2]).toBeNull()
+  })
+
+  it('survives non-array input defensively', () => {
+    expect(validateBomLines(null)).toEqual([])
+    expect(validateBomLines(undefined)).toEqual([])
   })
 })

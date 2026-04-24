@@ -142,3 +142,38 @@ export function computeBomCost(lines, materials) {
     return sum + qty * cost
   }, 0)
 }
+
+/**
+ * Validate every line in a BOM for submission.
+ *
+ * Returns one entry per input line:
+ *   - `null` for valid lines
+ *   - `{ field, message }` for lines that can't be submitted
+ *
+ * Rules:
+ *   1. Missing material_id → error on 'material_id'
+ *   2. Empty quantity OR quantity that doesn't parse as a positive number
+ *      → error on 'quantity'
+ *
+ * Pure function so the tests cover every edge case without mounting a form.
+ *
+ * @param {Array<{ material_id: string, quantity: number | string }>} lines
+ * @returns {Array<null | { field: 'material_id' | 'quantity', message: string }>}
+ */
+export function validateBomLines(lines) {
+  if (!Array.isArray(lines)) return []
+  return lines.map((line) => {
+    if (!line.material_id) {
+      return { field: 'material_id', message: 'Pick a cost entry for this line' }
+    }
+    const raw = String(line.quantity ?? '').trim()
+    if (raw === '') {
+      return { field: 'quantity', message: 'Enter a quantity' }
+    }
+    const qty = Number(raw)
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return { field: 'quantity', message: 'Quantity must be a number greater than 0' }
+    }
+    return null
+  })
+}
