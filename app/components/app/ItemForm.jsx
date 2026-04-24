@@ -126,9 +126,14 @@ export function ItemForm({
   const priceIsAutoRef = useRef(!defaultValues.price)
 
   // Apply the auto-fill whenever the BOM total changes.
+  // Also clears the price back to empty when the BOM is emptied, so long as
+  // we're still in auto mode (the user hasn't typed their own price).
   useEffect(() => {
-    if (priceIsAutoRef.current && bomCost > 0) {
+    if (!priceIsAutoRef.current) return
+    if (bomCost > 0) {
       setValue('price', bomCost.toFixed(2), { shouldDirty: false })
+    } else {
+      setValue('price', '', { shouldDirty: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bomCost])
