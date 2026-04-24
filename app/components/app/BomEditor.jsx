@@ -158,8 +158,11 @@ function BomLineRow({ line, materials, error, onDropdownChange, onFieldChange, o
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-3">
       <div className="flex items-end gap-2">
-        {/* Dropdown — same in both modes */}
-        <div className="min-w-0 flex-1 space-y-1">
+        {/* Dropdown — same in both modes. In ad-hoc mode we make space by
+            capping its max width; otherwise the fixed-width inputs to the
+            right can squeeze it below usable size and only the border's gold
+            stroke shows on the left edge. */}
+        <div className={`min-w-0 space-y-1 ${isAdhoc ? 'w-24 flex-shrink-0 sm:w-28' : 'flex-1'}`}>
           <label className="text-xs text-gray-500">Cost</label>
           <select
             value={dropdownValue}
@@ -252,7 +255,8 @@ function MaterialInputs({ line, materials, qtyHasError, onFieldChange }) {
 function AdhocInputs({ line, descriptionHasError, costHasError, onFieldChange }) {
   return (
     <>
-      <div className="w-32 space-y-1 sm:w-40">
+      {/* Description grows to fill whatever space is left between the dropdown and the cost */}
+      <div className="min-w-0 flex-1 space-y-1">
         <label className="text-xs text-gray-500">Description</label>
         <Input
           type="text"
@@ -264,7 +268,7 @@ function AdhocInputs({ line, descriptionHasError, costHasError, onFieldChange })
           maxLength={100}
         />
       </div>
-      <div className="w-24 space-y-1 sm:w-28">
+      <div className="w-24 flex-shrink-0 space-y-1 sm:w-28">
         <label className="text-xs text-gray-500">Cost</label>
         <Input
           type="number"
