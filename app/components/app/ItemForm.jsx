@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Camera, Plus, X } from 'lucide-react'
@@ -380,14 +380,18 @@ export function ItemForm({
   )
 }
 
-/** Plain <select> styled to match the Input component. */
-function SelectBase({ className = '', children, ...props }) {
+/** Plain <select> styled to match the Input component.
+ *  forwardRef is required so react-hook-form's `register()` can attach its ref
+ *  and actually read the element's value at submit time. Without forwardRef,
+ *  the ref is silently dropped and the form doesn't see changes to the select. */
+const SelectBase = forwardRef(function SelectBase({ className = '', children, ...props }, ref) {
   return (
     <select
+      ref={ref}
       className={`flex h-11 w-full rounded-xl border border-gray-200 bg-white px-4 text-base placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     >
       {children}
     </select>
   )
-}
+})
