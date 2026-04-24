@@ -25,7 +25,7 @@ import {
 } from '~/components/ui/dialog'
 import { ItemCard } from '~/components/app/ItemCard'
 import { ItemForm } from '~/components/app/ItemForm'
-import { cn } from '~/lib/utils'
+import { cn, formatCurrency } from '~/lib/utils'
 
 export function meta() {
   return [{ title: 'Inventory — GoldTrack' }]
@@ -247,11 +247,7 @@ export default function Inventory() {
             {filtered.length} {filtered.length === 1 ? 'item' : 'items'}
           </span>
           <span className="text-sm font-semibold text-brand-800">
-            Total:{' '}
-            {totalValue.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            Total: {formatCurrency(totalValue)}
           </span>
         </div>
       )}

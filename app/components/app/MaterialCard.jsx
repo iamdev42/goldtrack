@@ -1,4 +1,5 @@
 import { ChevronRight, Wrench } from 'lucide-react'
+import { formatCurrency } from '~/lib/utils'
 
 /**
  * Tappable material row. Shows name + unit + cost.
@@ -22,16 +23,9 @@ export function MaterialCard({ material, onClick }) {
       </div>
 
       <div className="ml-3 flex flex-shrink-0 items-center gap-1">
-        <span className="text-sm font-semibold text-gray-700">{formatCost(material.cost)}</span>
+        <span className="text-sm font-semibold text-gray-700">{formatCurrency(material.cost)}</span>
         <ChevronRight className="h-5 w-5 text-gray-300" aria-hidden />
       </div>
     </button>
   )
-}
-
-function formatCost(value) {
-  return Number(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
 }

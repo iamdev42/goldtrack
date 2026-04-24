@@ -1,5 +1,6 @@
 import { ChevronRight, ImageIcon } from 'lucide-react'
 import { STATUS_COLORS, STATUS_LABELS } from '~/lib/validations/item'
+import { formatCurrency } from '~/lib/utils'
 
 /**
  * Tappable inventory row.
@@ -69,7 +70,9 @@ export function ItemCard({ item, onClick, onThumbClick }) {
 
           <div className="ml-3 flex flex-shrink-0 items-center gap-1">
             {item.price != null && (
-              <span className="text-sm font-semibold text-gray-700">{formatPrice(item.price)}</span>
+              <span className="text-sm font-semibold text-gray-700">
+                {formatCurrency(item.price)}
+              </span>
             )}
             <ChevronRight className="h-5 w-5 text-gray-300" aria-hidden />
           </div>
@@ -77,11 +80,4 @@ export function ItemCard({ item, onClick, onThumbClick }) {
       </div>
     </li>
   )
-}
-
-function formatPrice(value) {
-  return Number(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
 }
