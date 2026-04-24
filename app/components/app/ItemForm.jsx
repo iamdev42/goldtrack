@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Camera, Plus, X } from 'lucide-react'
 import { Button } from '~/components/ui/button'
@@ -16,6 +16,7 @@ import {
   computeBomCost,
 } from '~/lib/validations/item'
 import { BomEditor } from '~/components/app/BomEditor'
+import { CustomerPicker } from '~/components/app/CustomerPicker'
 import { cn } from '~/lib/utils'
 
 /**
@@ -64,6 +65,7 @@ export function ItemForm({
     register,
     handleSubmit,
     setValue,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(itemSchema),
@@ -362,17 +364,21 @@ export function ItemForm({
         )}
       </div>
 
-      {/* Customer link */}
+      {/* Customer link — searchable picker (scales to 700+ customers) */}
       <div className="space-y-1.5">
         <Label htmlFor="customer_id">Linked customer</Label>
-        <SelectBase id="customer_id" {...register('customer_id')}>
-          <option value="">No customer linked</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </SelectBase>
+        <Controller
+          name="customer_id"
+          control={control}
+          render={({ field }) => (
+            <CustomerPicker
+              id="customer_id"
+              value={field.value}
+              onChange={field.onChange}
+              customers={customers}
+            />
+          )}
+        />
       </div>
 
       {/* Description */}
