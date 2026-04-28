@@ -110,12 +110,16 @@ export function DialogBody({ className, ...props }) {
  * Visually distinct: a subtle brand-cream wash + slightly stronger top border
  * make the bar read as "this is a separate, always-visible region" instead of
  * looking like the page just got cut off.
+ *
+ * Bottom corners are rounded on sm+ to match the dialog's outer curve. On
+ * mobile (bottom sheet, no bottom radius on the dialog itself) we leave them
+ * square — the footer flows to the screen edge.
  */
 export function DialogFooter({ className, ...props }) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 border-t border-gray-200 bg-brand-50/60 px-6 py-3',
+        'flex items-center gap-2 rounded-b-2xl border-t border-gray-200 bg-brand-50/60 px-6 py-3',
         className
       )}
       {...props}
