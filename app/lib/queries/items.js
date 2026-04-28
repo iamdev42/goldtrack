@@ -9,6 +9,7 @@ export const itemKeys = {
   list: (tenantId) => [...itemKeys.lists(), tenantId],
   details: () => [...itemKeys.all, 'detail'],
   detail: (id) => [...itemKeys.details(), id],
+  byCustomer: (customerId) => [...itemKeys.all, 'by-customer', customerId],
 }
 
 // ── Reads ─────────────────────────────────────────────────────
@@ -30,6 +31,31 @@ export function useItems(tenantId) {
           '*, customer:customers(name), bom:item_materials(id, material_id, quantity, material:materials(id, name, unit, cost)), adhoc:item_ad_hoc_costs(id, description, cost)'
         )
         .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * List all items linked to a specific customer. Same shape and joins as
+ * `useItems`, but filtered by `customer_id`. RLS on the items table still
+ * enforces tenant isolation, so we don't need to also pass tenantId here.
+ *
+ * @param {string | null} customerId
+ */
+export function useCustomerItems(customerId) {
+  return useQuery({
+    queryKey: itemKeys.byCustomer(customerId),
+    enabled: !!customerId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('items')
+        .select(
+          '*, customer:customers(name), bom:item_materials(id, material_id, quantity, material:materials(id, name, unit, cost)), adhoc:item_ad_hoc_costs(id, description, cost)'
+        )
+        .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
       if (error) throw error
       return data

@@ -22,7 +22,10 @@ export default [
 
   // Protected app layout (everything behind auth)
   layout('routes/_app.jsx', [
-    ...prefix('customers', [index('routes/_app.customers._index.jsx')]),
+    ...prefix('customers', [
+      index('routes/_app.customers._index.jsx'),
+      route(':id', 'routes/_app.customers.$id.jsx'),
+    ]),
     ...prefix('inventory', [index('routes/_app.inventory._index.jsx')]),
     ...prefix('materials', [index('routes/_app.materials._index.jsx')]),
   ]),

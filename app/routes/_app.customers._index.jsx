@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { Plus, Search, Users } from 'lucide-react'
 import { useTenant } from '~/hooks/useTenant'
 import {
@@ -25,6 +26,7 @@ export function meta() {
 
 export default function Customers() {
   const { tenantId } = useTenant()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -60,12 +62,6 @@ export default function Customers() {
 
   function openAdd() {
     setEditing(null)
-    setFormError(null)
-    setDialogOpen(true)
-  }
-
-  function openEdit(customer) {
-    setEditing(customer)
     setFormError(null)
     setDialogOpen(true)
   }
@@ -153,7 +149,7 @@ export default function Customers() {
         <ul className="space-y-2">
           {filtered.map((c) => (
             <li key={c.id}>
-              <CustomerCard customer={c} onClick={() => openEdit(c)} />
+              <CustomerCard customer={c} onClick={() => navigate(`/customers/${c.id}`)} />
             </li>
           ))}
         </ul>

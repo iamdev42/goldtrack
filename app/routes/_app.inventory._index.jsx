@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Package, Plus, Search, X } from 'lucide-react'
 import { useTenant } from '~/hooks/useTenant'
@@ -42,6 +43,7 @@ const FILTERS = [
 export default function Inventory() {
   const { tenantId } = useTenant()
   const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const { data: items = [], isLoading, error } = useItems(tenantId)
   const { data: customers = [] } = useCustomers(tenantId)
@@ -109,7 +111,30 @@ export default function Inventory() {
     setDialogOpen(false)
     setEditing(null)
     setFormError(null)
+    // Strip ?edit=... from the URL on close so navigating back doesn't reopen
+    // the same dialog. Replace history entry to keep the back stack tidy.
+    if (searchParams.has('edit')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('edit')
+      setSearchParams(next, { replace: true })
+    }
   }
+
+  // Deep-link support: when the URL has ?edit=<id>, open that item's dialog
+  // once the items list has loaded. Used by the customer detail page to jump
+  // straight to an item's edit dialog without duplicating dialog code.
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (!editId || items.length === 0) return
+    if (dialogOpen && editing?.id === editId) return // already open for this id
+    const target = items.find((i) => i.id === editId)
+    if (target) {
+      setEditing(target)
+      setFormError(null)
+      setDialogOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, items])
 
   /**
    * Handle save. The form gives us:
