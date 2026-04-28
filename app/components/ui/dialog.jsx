@@ -23,6 +23,26 @@ export const DialogOverlay = forwardRef(function DialogOverlay({ className, ...p
   )
 })
 
+/**
+ * Dialog content uses a 3-region flex column:
+ *
+ *   ┌─────────────────────┐
+ *   │ DialogHeader        │  fixed at top
+ *   ├─────────────────────┤
+ *   │ DialogBody          │  scrollable
+ *   │ ...                 │
+ *   ├─────────────────────┤
+ *   │ DialogFooter        │  fixed at bottom (e.g. for Save/Cancel)
+ *   └─────────────────────┘
+ *
+ * Forms wrap their button row in <DialogFooter> to get a sticky save bar.
+ * If a form doesn't use DialogFooter, the body just scrolls all the way.
+ *
+ * The container caps the dialog height to 90vh so the sticky footer doesn't
+ * sit way below the viewport on tall screens. Body uses min-h-0 so it can
+ * actually shrink below its content's natural size — without that, flex
+ * children refuse to scroll.
+ */
 export const DialogContent = forwardRef(function DialogContent(
   { className, children, ...props },
   ref
@@ -35,7 +55,7 @@ export const DialogContent = forwardRef(function DialogContent(
         // Mobile: bottom sheet. sm+: centered modal.
         className={cn(
           'fixed left-0 right-0 bottom-0 z-50 bg-white shadow-xl rounded-t-2xl',
-          'max-h-[90vh] overflow-y-auto',
+          'flex flex-col max-h-[90vh]',
           'sm:left-1/2 sm:right-auto sm:bottom-auto sm:top-1/2',
           'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl',
           'focus:outline-none',
@@ -53,7 +73,46 @@ export function DialogHeader({ className, ...props }) {
   return (
     <div
       className={cn(
-        'flex items-center justify-between border-b border-gray-100 px-6 pt-5 pb-3 sticky top-0 bg-white z-10',
+        // No longer position:sticky — it's a fixed-height flex child at the top.
+        // Background stays white so the body scrolling behind doesn't bleed through.
+        'flex items-center justify-between border-b border-gray-100 bg-white px-6 pt-5 pb-3',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Scrollable body. Replaces the implicit body region — every form should
+ * wrap its content in DialogBody (or set similar styling on its own root).
+ *
+ * If you don't wrap a body, the dialog still scrolls but the footer won't
+ * pin correctly because the children won't have a flex-grow region.
+ */
+export function DialogBody({ className, ...props }) {
+  return (
+    <div
+      className={cn(
+        // flex-1 + min-h-0 is the key: lets this region shrink AND grow within
+        // the flex column. overflow-y-auto handles the scroll.
+        'flex-1 min-h-0 overflow-y-auto',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Sticky footer at the bottom of the dialog. Sits below the scrolling body.
+ * Contains a top border to visually separate it from scrolling content above.
+ */
+export function DialogFooter({ className, ...props }) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 border-t border-gray-100 bg-white px-6 py-3',
         className
       )}
       {...props}
