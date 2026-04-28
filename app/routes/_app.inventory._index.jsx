@@ -317,6 +317,8 @@ export default function Inventory() {
             <DialogCloseButton />
           </DialogHeader>
           <ItemForm
+            tenantId={tenantId}
+            itemId={editing?.id || null}
             defaultValues={
               editing
                 ? {

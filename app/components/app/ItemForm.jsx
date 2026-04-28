@@ -18,6 +18,7 @@ import {
 } from '~/lib/validations/item'
 import { BomEditor } from '~/components/app/BomEditor'
 import { CustomerPicker } from '~/components/app/CustomerPicker'
+import { DocumentsSection } from '~/components/app/DocumentsSection'
 import { PhotoCropper } from '~/components/app/PhotoCropper'
 import { cn } from '~/lib/utils'
 
@@ -33,6 +34,8 @@ import { cn } from '~/lib/utils'
  *      bom           — array of { material_id, quantity } lines
  *
  * @param {{
+ *   tenantId: string,
+ *   itemId?: string | null,
  *   defaultValues?: import('~/lib/validations/item').ItemInput,
  *   existingPhotos?: string[],
  *   defaultBom?: Array<object>, // material or adhoc lines; see BomEditor
@@ -51,6 +54,8 @@ import { cn } from '~/lib/utils'
  * }} props
  */
 export function ItemForm({
+  tenantId,
+  itemId = null,
   defaultValues = emptyItem,
   existingPhotos = [],
   defaultBom = [],
@@ -477,6 +482,9 @@ export function ItemForm({
             {...register('description')}
           />
         </div>
+
+        {/* Documents — receipts, certificates, sketches, correspondence, etc. */}
+        <DocumentsSection tenantId={tenantId} itemId={itemId} />
 
         {error && (
           <p role="alert" className="text-sm text-red-600">
