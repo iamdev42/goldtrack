@@ -106,13 +106,16 @@ export function DialogBody({ className, ...props }) {
 
 /**
  * Sticky footer at the bottom of the dialog. Sits below the scrolling body.
- * Contains a top border to visually separate it from scrolling content above.
+ *
+ * Visually distinct: a subtle brand-cream wash + slightly stronger top border
+ * make the bar read as "this is a separate, always-visible region" instead of
+ * looking like the page just got cut off.
  */
 export function DialogFooter({ className, ...props }) {
   return (
     <div
       className={cn(
-        'flex items-center gap-2 border-t border-gray-100 bg-white px-6 py-3',
+        'flex items-center gap-2 border-t border-gray-200 bg-brand-50/60 px-6 py-3',
         className
       )}
       {...props}
