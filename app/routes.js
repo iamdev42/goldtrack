@@ -28,5 +28,9 @@ export default [
     ]),
     ...prefix('inventory', [index('routes/_app.inventory._index.jsx')]),
     ...prefix('materials', [index('routes/_app.materials._index.jsx')]),
+    route('settings', 'routes/_app.settings.jsx'),
   ]),
+
+  // Public catalogue — anonymous access, separate layout (no auth shell)
+  layout('routes/_shop.jsx', [route('shop/:slug', 'routes/_shop.$slug._index.jsx')]),
 ]
