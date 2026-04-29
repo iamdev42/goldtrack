@@ -22,6 +22,7 @@ export default [
 
   // Protected app layout (everything behind auth)
   layout('routes/_app.jsx', [
+    route('dashboard', 'routes/_app.dashboard.jsx'),
     ...prefix('customers', [
       index('routes/_app.customers._index.jsx'),
       route(':id', 'routes/_app.customers.$id.jsx'),

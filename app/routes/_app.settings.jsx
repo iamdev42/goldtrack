@@ -44,6 +44,7 @@ export default function Settings() {
       slug: '',
       public_display_name: '',
       public_bio: '',
+      calendar_embed_url: '',
     },
     mode: 'onBlur',
   })
@@ -55,6 +56,7 @@ export default function Settings() {
         slug: tenant.slug || '',
         public_display_name: tenant.public_display_name || '',
         public_bio: tenant.public_bio || '',
+        calendar_embed_url: tenant.calendar_embed_url || '',
       })
     }
   }, [tenant, reset])
@@ -188,6 +190,48 @@ export default function Settings() {
             <p role="alert" className="text-sm text-red-600">
               {errors.public_bio.message}
             </p>
+          )}
+        </div>
+
+        {/* Calendar embed URL — for the Dashboard's Calendar card */}
+        <div className="space-y-1.5 border-t border-gray-100 pt-4">
+          <Label htmlFor="calendar_embed_url">Calendar embed URL (optional)</Label>
+          <Input
+            id="calendar_embed_url"
+            type="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="https://calendar.google.com/calendar/embed?src=…"
+            invalid={!!errors.calendar_embed_url}
+            {...register('calendar_embed_url')}
+          />
+          {errors.calendar_embed_url ? (
+            <p role="alert" className="text-sm text-red-600">
+              {errors.calendar_embed_url.message}
+            </p>
+          ) : (
+            <details className="text-xs text-gray-500">
+              <summary className="cursor-pointer text-brand-700 hover:underline">
+                How do I get this URL?
+              </summary>
+              <div className="mt-2 space-y-1 pl-1 leading-relaxed">
+                <p>
+                  <strong>Google Calendar:</strong> open calendar.google.com, hover the calendar in
+                  &ldquo;My calendars&rdquo;, click the three dots → <em>Settings and sharing</em>.
+                  Scroll to <em>Integrate calendar</em> and copy the{' '}
+                  <em>Public URL to this calendar</em> or the <em>Embed code</em> (just the URL part
+                  starting with <code>https://calendar.google.com/calendar/embed</code>).
+                </p>
+                <p>
+                  <strong>Outlook:</strong> Outlook web → Calendar → Share → Publish a calendar →
+                  copy the HTML link.
+                </p>
+                <p>
+                  <strong>Apple iCloud:</strong> share a public iCloud calendar and copy its
+                  webcal/https URL.
+                </p>
+              </div>
+            </details>
           )}
         </div>
 

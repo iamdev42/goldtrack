@@ -26,6 +26,14 @@ export const tenantSettingsSchema = z.object({
     .optional()
     .or(z.literal('')),
   public_bio: z.string().trim().max(500, 'Bio is too long').optional().or(z.literal('')),
+  // Calendar embed URL — light validation, must be https. Empty is fine.
+  calendar_embed_url: z
+    .string()
+    .trim()
+    .url('Enter a valid URL')
+    .startsWith('https://', 'URL must start with https://')
+    .optional()
+    .or(z.literal('')),
 })
 
 /** @typedef {import('zod').infer<typeof tenantSettingsSchema>} TenantSettingsInput */
@@ -34,6 +42,7 @@ export const emptyTenantSettings = {
   slug: '',
   public_display_name: '',
   public_bio: '',
+  calendar_embed_url: '',
 }
 
 /** Normalize form input to a DB-ready payload. */
@@ -42,5 +51,6 @@ export function tenantSettingsToDbPayload(input) {
     slug: input.slug.trim(),
     public_display_name: input.public_display_name?.trim() || null,
     public_bio: input.public_bio?.trim() || null,
+    calendar_embed_url: input.calendar_embed_url?.trim() || null,
   }
 }

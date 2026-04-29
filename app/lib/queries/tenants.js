@@ -21,7 +21,7 @@ export function useTenantSettings(tenantId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tenants')
-        .select('id, name, slug, public_display_name, public_bio')
+        .select('id, name, slug, public_display_name, public_bio, calendar_embed_url')
         .eq('id', tenantId)
         .single()
       if (error) throw error

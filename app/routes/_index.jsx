@@ -10,7 +10,7 @@ export async function clientLoader() {
     data: { session },
   } = await supabase.auth.getSession()
 
-  throw redirect(session ? '/customers' : '/login')
+  throw redirect(session ? '/dashboard' : '/login')
 }
 
 // Unreachable — the loader always throws — but React Router requires a default export.

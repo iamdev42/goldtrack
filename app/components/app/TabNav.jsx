@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router'
-import { Users, Package, Wrench, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, Package, Wrench, Settings } from 'lucide-react'
 import { cn } from '~/lib/utils'
 
 const TABS = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/customers', label: 'Customers', icon: Users },
   { to: '/inventory', label: 'Inventory', icon: Package },
   { to: '/materials', label: 'Materials', icon: Wrench },
@@ -44,7 +45,7 @@ export function TabNav() {
         className="fixed bottom-0 left-0 right-0 z-50 border-t border-brand-100 bg-white sm:hidden"
         aria-label="Primary"
       >
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {TABS.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

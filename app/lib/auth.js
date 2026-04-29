@@ -28,7 +28,7 @@ export async function requireAnon() {
   } = await supabase.auth.getSession()
 
   if (session) {
-    throw redirect('/customers')
+    throw redirect('/dashboard')
   }
   return null
 }

@@ -31,7 +31,7 @@ export default function Login() {
 
     // Successful sign-in — move to main app. The _app layout loader will
     // verify the session and hydrate tenant data.
-    navigate('/customers', { replace: true })
+    navigate('/dashboard', { replace: true })
   }
 
   return (
