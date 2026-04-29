@@ -50,6 +50,11 @@ export const itemSchema = z.object({
   status: z.enum(ITEM_STATUSES).default('for_sale'),
 
   customer_id: z.string().optional().or(z.literal('')),
+
+  // Publication flag — only takes effect on items where status === 'for_sale'.
+  // The catalogue query enforces both, but the form lets the user tick this
+  // independently so the choice persists if she later changes status back.
+  is_published: z.boolean().default(false),
 })
 
 /**
@@ -116,6 +121,7 @@ export const emptyItem = {
   price: '',
   status: 'for_sale',
   customer_id: '',
+  is_published: false,
 }
 
 /**
@@ -133,6 +139,7 @@ export function itemToDbPayload(input) {
     price: input.price ? Number(input.price) : null,
     status: input.status || 'for_sale',
     customer_id: input.customer_id || null,
+    is_published: !!input.is_published,
   }
 }
 

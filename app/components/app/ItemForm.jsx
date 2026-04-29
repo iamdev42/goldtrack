@@ -426,6 +426,22 @@ export function ItemForm({
             </div>
           </div>
 
+          {/* Publication toggle — only effective when status is 'for_sale'.
+              Stored independently so the choice survives status changes. */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-brand-50/50 px-4 py-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 cursor-pointer accent-brand-600"
+              {...register('is_published')}
+            />
+            <span className="text-sm">
+              <span className="block font-medium text-gray-800">Show in public catalogue</span>
+              <span className="block text-xs text-gray-500">
+                Visible to anyone with your shop&rsquo;s link, only while marked as For Sale.
+              </span>
+            </span>
+          </label>
+
           {/* Bill of materials */}
           <BomEditor lines={bom} materials={materials} errors={bomErrors} onChange={updateBom} />
 
