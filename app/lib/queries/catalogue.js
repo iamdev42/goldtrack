@@ -17,6 +17,7 @@ export const catalogueKeys = {
   all: ['catalogue'],
   tenant: (slug) => [...catalogueKeys.all, 'tenant', slug],
   items: (tenantId) => [...catalogueKeys.all, 'items', tenantId],
+  item: (tenantId, itemId) => [...catalogueKeys.all, 'item', tenantId, itemId],
 }
 
 /**
@@ -71,6 +72,32 @@ export function useCatalogueItems(tenantId) {
         .eq('is_published', true)
         .eq('status', 'for_sale')
         .order('created_at', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/**
+ * Fetch a single catalogue item. RLS still enforces is_published + status,
+ * so an unpublished item ID returns null (not an error).
+ *
+ * @param {string | null} tenantId
+ * @param {string | null} itemId
+ */
+export function useCatalogueItem(tenantId, itemId) {
+  return useQuery({
+    queryKey: catalogueKeys.item(tenantId, itemId),
+    enabled: !!tenantId && !!itemId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('items')
+        .select('id, name, description, category, price, photos, weight_g')
+        .eq('tenant_id', tenantId)
+        .eq('id', itemId)
+        .eq('is_published', true)
+        .eq('status', 'for_sale')
+        .maybeSingle()
       if (error) throw error
       return data
     },

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { Search } from 'lucide-react'
 import { useCatalogueItems, useCatalogueTenant } from '~/lib/queries/catalogue'
 import { Input } from '~/components/ui/input'
@@ -147,7 +147,7 @@ export default function ShopCatalogue() {
           No items match your filters.
         </div>
       ) : (
-        <CatalogueGrid items={filtered} />
+        <CatalogueGrid items={filtered} slug={slug} />
       )}
 
       <footer className="pb-8 pt-6 text-center text-xs text-gray-400">Powered by GoldTrack</footer>
@@ -163,20 +163,23 @@ export default function ShopCatalogue() {
  * left-to-right reading order. For a Pinterest-style catalogue this is
  * fine (the visual is what matters, not ordering).
  */
-function CatalogueGrid({ items }) {
+function CatalogueGrid({ items, slug }) {
   return (
     <div className="columns-2 gap-3 [column-fill:_balance] sm:columns-3 sm:gap-4">
       {items.map((item) => (
-        <CatalogueCard key={item.id} item={item} />
+        <CatalogueCard key={item.id} item={item} slug={slug} />
       ))}
     </div>
   )
 }
 
-function CatalogueCard({ item }) {
+function CatalogueCard({ item, slug }) {
   const photo = item.photos?.[0]
   return (
-    <div className="mb-3 break-inside-avoid overflow-hidden rounded-2xl bg-white shadow-sm transition-shadow hover:shadow-md sm:mb-4">
+    <Link
+      to={`/shop/${slug}/items/${item.id}`}
+      className="mb-3 block break-inside-avoid overflow-hidden rounded-2xl bg-white shadow-sm transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 sm:mb-4"
+    >
       {photo ? (
         <img
           src={photo}
@@ -196,6 +199,6 @@ function CatalogueCard({ item }) {
           <p className="text-sm font-medium text-brand-800">{formatCurrency(Number(item.price))}</p>
         )}
       </div>
-    </div>
+    </Link>
   )
 }

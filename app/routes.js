@@ -32,5 +32,8 @@ export default [
   ]),
 
   // Public catalogue — anonymous access, separate layout (no auth shell)
-  layout('routes/_shop.jsx', [route('shop/:slug', 'routes/_shop.$slug._index.jsx')]),
+  layout('routes/_shop.jsx', [
+    route('shop/:slug', 'routes/_shop.$slug._index.jsx'),
+    route('shop/:slug/items/:itemId', 'routes/_shop.$slug.items.$itemId.jsx'),
+  ]),
 ]
