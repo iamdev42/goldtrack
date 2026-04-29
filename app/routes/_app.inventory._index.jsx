@@ -354,6 +354,7 @@ export default function Inventory() {
                     price: editing.price != null ? String(editing.price) : '',
                     status: editing.status || 'for_sale',
                     customer_id: editing.customer_id || '',
+                    is_published: !!editing.is_published,
                   }
                 : undefined
             }
